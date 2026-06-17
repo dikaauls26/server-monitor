@@ -13,5 +13,10 @@ update.sh text eol=lf
 *.css text
 *.md text
 
+# Vendored front-end libraries: keep exactly as shipped (no EOL conversion)
+public/vendor/** -text
+
 # Treat the SQLite DB as binary if it ever sneaks in
 *.db binary
+*.woff binary
+*.woff2 binary

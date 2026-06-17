@@ -85,7 +85,13 @@ body.sm-body {
   100% { box-shadow: 0 0 0 0 rgba(46,204,113,0); }
 }
 
-.sm-content { padding: 1.25rem; flex: 1; }
+.sm-content {
+  padding: 1.5rem clamp(1rem, 3vw, 2.25rem);
+  flex: 1;
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+}
 
 /* ---------- Cards ---------- */
 .sm-card {

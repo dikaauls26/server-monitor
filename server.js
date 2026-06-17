@@ -60,13 +60,19 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
-        styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
-        fontSrc: ["'self'", 'https://cdn.jsdelivr.net', 'data:'],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        fontSrc: ["'self'", 'data:'],
         imgSrc: ["'self'", 'data:'],
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
         frameAncestors: ["'self'"],
+        // IMPORTANT: do NOT force https upgrades. The dashboard is served over
+        // plain HTTP by default; upgrading would break CSS/JS and the login
+        // POST on http://SERVER_IP. A reverse proxy can add HTTPS separately.
+        upgradeInsecureRequests: null,
       },
     },
     crossOriginEmbedderPolicy: false,
