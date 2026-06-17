@@ -8,6 +8,7 @@ const systemService = require('../services/systemService');
 const serviceMonitorService = require('../services/serviceMonitorService');
 const mailService = require('../services/mailService');
 const logService = require('../services/logService');
+const controlService = require('../services/controlService');
 const alertRepository = require('../repositories/alertRepository');
 
 async function overview(req, res, next) {
@@ -112,6 +113,25 @@ function clearAlerts(req, res, next) {
   }
 }
 
+async function controlServiceAction(req, res, next) {
+  try {
+    const { service, action } = req.body || {};
+    const result = await controlService.controlService(service, action);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+function rebootServer(req, res, next) {
+  try {
+    const result = controlService.rebootSystem();
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   overview,
   services,
@@ -122,4 +142,6 @@ module.exports = {
   acknowledgeAlert,
   acknowledgeAllAlerts,
   clearAlerts,
+  controlServiceAction,
+  rebootServer,
 };

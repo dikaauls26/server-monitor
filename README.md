@@ -12,7 +12,7 @@ No Docker required. Clone, run one script, and the dashboard is live.
 ## Features
 
 - **Dashboard** — realtime CPU, RAM, Disk, Uptime, OS info, Network traffic, Server load (auto-refresh).
-- **Monitoring** — status of PM2, Node, MySQL/MariaDB, Redis, Nginx, OpenLiteSpeed, Postfix.
+- **Monitoring** — status of PM2, Node, MySQL/MariaDB, Redis, Nginx, OpenLiteSpeed, Postfix, plus **one-click controls** (start / stop / restart) and a **Reboot Server** button.
 - **Mail** — Postfix queue (total / pending / active / failed) and SMTP listener status.
 - **Logs** — view error & system logs, live search, and one-click download.
 - **Alerts** — automatic alerts when CPU / RAM / Disk exceed configurable thresholds.
@@ -171,6 +171,14 @@ server-monitor/
 - Log file access is restricted to the whitelisted paths in `.env`.
 
 For internet-facing deployments, place this behind **Nginx + HTTPS** and set `SECURE_COOKIE=true`.
+
+### Service control & reboot
+
+The Monitoring page can start/stop/restart Nginx, MySQL/MariaDB, Redis, Postfix,
+OpenLiteSpeed and LSCPD, and reboot the server. These run `systemctl` and
+`shutdown`, so the app must run as **root** (the default on most VPS), or the
+service user must have **passwordless sudo**. Only whitelisted services and
+actions are accepted — arbitrary commands cannot be injected.
 
 ---
 

@@ -134,9 +134,11 @@ body.sm-body {
 /* ---------- Service grid ---------- */
 .sm-service {
   display: flex; align-items: center; justify-content: space-between;
+  gap: .5rem; flex-wrap: wrap;
   padding: .85rem 1rem; border: 1px solid var(--sm-border);
   border-radius: .65rem; background: var(--sm-card-2);
 }
+.sm-service .sm-ctl .btn { padding: .15rem .45rem; }
 .sm-service .name { font-weight: 600; display: flex; align-items: center; gap: .5rem; }
 .sm-service .name i { color: var(--sm-primary); }
 

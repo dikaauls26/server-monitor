@@ -203,13 +203,35 @@
   // ===================================================================
   function initMonitoring() {
     var icons = { node: 'bi-node-plus', mysql: 'bi-database', redis: 'bi-database-fill', nginx: 'bi-hdd-rack', openlitespeed: 'bi-lightning-charge', postfix: 'bi-envelope' };
+    // Services that can be controlled via systemctl from the dashboard.
+    var CONTROLLABLE = { nginx: 1, mysql: 1, redis: 1, postfix: 1, openlitespeed: 1 };
+
+    function ctlButtons(key) {
+      if (!CONTROLLABLE[key]) return '';
+      return '<div class="btn-group btn-group-sm sm-ctl">' +
+        '<button class="btn btn-outline-success" data-ctl="start" data-svc="' + key + '" title="Start"><i class="bi bi-play-fill"></i></button>' +
+        '<button class="btn btn-outline-primary" data-ctl="restart" data-svc="' + key + '" title="Restart"><i class="bi bi-arrow-clockwise"></i></button>' +
+        '<button class="btn btn-outline-danger" data-ctl="stop" data-svc="' + key + '" title="Stop"><i class="bi bi-stop-fill"></i></button>' +
+        '</div>';
+    }
+
+    function showResult(ok, msg) {
+      var el = $('#actionResult');
+      if (!el) return;
+      el.className = 'alert py-2 mb-3 ' + (ok ? 'alert-success' : 'alert-danger');
+      el.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(msg);
+      el.classList.remove('d-none');
+    }
 
     function render(d) {
       var grid = $('#serviceGrid');
       if (grid) {
         grid.innerHTML = d.services.map(function (s) {
           var icon = icons[s.key] || 'bi-gear';
-          return '<div class="col-12 col-md-6 col-xl-4"><div class="sm-service"><span class="name"><i class="bi ' + icon + '"></i>' + esc(s.label) + '</span>' + pill(s.status) + '</div></div>';
+          return '<div class="col-12 col-md-6 col-xl-4"><div class="sm-service">' +
+            '<span class="name"><i class="bi ' + icon + '"></i>' + esc(s.label) + '</span>' +
+            '<span class="d-flex align-items-center gap-2">' + pill(s.status) + ctlButtons(s.key) + '</span>' +
+            '</div></div>';
         }).join('');
       }
       $('#svcUpdated').textContent = 'Updated ' + new Date(d.timestamp).toLocaleTimeString();
@@ -236,11 +258,57 @@
       }
     }
 
-    poller(function () {
+    function refresh() {
       return fetchJSON('/api/services').then(function (res) {
         if (res.ok) { render(res.data); markLive(true); } else markLive(false);
       }).catch(function () { markLive(false); });
-    }, 5000);
+    }
+
+    function runControl(svc, action, btn) {
+      if ((action === 'stop') && !confirm('Stop ' + svc + '? This service will go offline.')) return;
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+      $('#actionResult') && $('#actionResult').classList.add('d-none');
+      fetchJSON('/api/control/service', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ service: svc, action: action })
+      }).then(function (res) {
+        showResult(res.ok, res.message || res.error || 'Done.');
+      }).catch(function () {
+        showResult(false, 'Request failed.');
+      }).then(function () {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        setTimeout(refresh, 800);
+      });
+    }
+
+    function runReboot(btn) {
+      if (!confirm('Reboot the ENTIRE server now? All services and this dashboard will go down for a while.')) return;
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Rebooting…'; }
+      fetchJSON('/api/control/reboot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+      }).then(function (res) {
+        showResult(res.ok, res.message || res.error || 'Reboot issued.');
+      }).catch(function () {
+        showResult(true, 'Reboot issued (connection closed).');
+      });
+    }
+
+    document.addEventListener('click', function (e) {
+      var ctlBtn = e.target.closest ? e.target.closest('[data-ctl]') : null;
+      if (ctlBtn) {
+        e.preventDefault();
+        runControl(ctlBtn.getAttribute('data-svc'), ctlBtn.getAttribute('data-ctl'), ctlBtn);
+        return;
+      }
+      var rb = e.target.closest ? e.target.closest('[data-reboot]') : null;
+      if (rb) { e.preventDefault(); runReboot(rb); }
+    });
+
+    poller(refresh, 5000);
   }
 
   // ===================================================================
