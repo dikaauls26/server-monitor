@@ -24,9 +24,9 @@ No Docker required. Clone, run one script, and the dashboard is live.
 
 ## Requirements
 
-- Ubuntu / Debian server (the installer targets `apt`).
-- Ability to run `sudo` (for installing Node.js, PM2 and opening the firewall port).
-- The installer handles everything else (Node.js LTS, PM2, dependencies, DB, firewall).
+- Linux server — **Ubuntu / Debian** (`apt`) or **RHEL / AlmaLinux / Rocky / CentOS / Fedora** (`dnf`/`yum`).
+- Ability to run `sudo` (for installing Node.js, PM2 and opening the firewall port), or run as root.
+- The installer handles everything else (Node.js LTS, PM2, dependencies, DB, firewall: UFW **or** firewalld).
 
 ---
 

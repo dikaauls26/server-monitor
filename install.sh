@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ==========================================================
-#  Server Monitor - Automated Installer (Ubuntu / Debian)
+#  Server Monitor - Automated Installer
+#  Supports: Ubuntu/Debian (apt) and RHEL/AlmaLinux/Rocky/CentOS/Fedora (dnf/yum)
 #  Usage:  bash install.sh
 # ==========================================================
 set -euo pipefail
@@ -23,41 +24,84 @@ echo "=================================================="
 echo "        SERVER MONITOR - INSTALLER"
 echo "=================================================="
 
-# ---- 1. OS check ----------------------------------------------------------
+# ---- 1. OS / package manager detection ------------------------------------
 log "Checking operating system..."
 if [ ! -f /etc/os-release ]; then
-  err "Cannot detect OS. This installer supports Ubuntu/Debian only."
+  err "Cannot detect OS (no /etc/os-release)."
   exit 1
 fi
 . /etc/os-release
+PRETTY="${PRETTY_NAME:-${ID:-unknown}}"
+
+# Detect available package manager.
+PKG=""
+if command -v apt-get >/dev/null 2>&1; then PKG="apt";
+elif command -v dnf >/dev/null 2>&1; then PKG="dnf";
+elif command -v yum >/dev/null 2>&1; then PKG="yum";
+fi
+
 case "${ID:-}${ID_LIKE:-}" in
-  *ubuntu*|*debian*) ok "Detected ${PRETTY_NAME:-$ID}" ;;
-  *) warn "OS '${PRETTY_NAME:-$ID}' is not Ubuntu/Debian. Continuing anyway (best effort)." ;;
+  *ubuntu*|*debian*)                         ok "Detected ${PRETTY} (Debian family)" ;;
+  *rhel*|*fedora*|*centos*|*almalinux*|*rocky*) ok "Detected ${PRETTY} (RHEL family)" ;;
+  *)                                         warn "OS '${PRETTY}' not explicitly supported. Continuing best-effort." ;;
 esac
 
+if [ -z "$PKG" ]; then
+  err "No supported package manager found (need apt-get, dnf or yum)."
+  exit 1
+fi
+log "Using package manager: ${PKG}"
 export DEBIAN_FRONTEND=noninteractive
 
-# ---- 2. Base packages (curl, ca-certs) ------------------------------------
-log "Updating apt index..."
-run_root apt-get update -y >/dev/null 2>&1 || warn "apt-get update reported issues; continuing."
-
+# ---- 2. Package helpers + base packages -----------------------------------
+pm_update() {
+  case "$PKG" in
+    apt) run_root apt-get update -y >/dev/null 2>&1 || warn "apt-get update reported issues; continuing." ;;
+    dnf) run_root dnf makecache -y >/dev/null 2>&1 || true ;;
+    yum) run_root yum makecache -y >/dev/null 2>&1 || true ;;
+  esac
+}
+pm_is_installed() {
+  case "$PKG" in
+    apt) dpkg -s "$1" >/dev/null 2>&1 ;;
+    dnf|yum) rpm -q "$1" >/dev/null 2>&1 ;;
+  esac
+}
+pm_install() {
+  case "$PKG" in
+    apt) run_root apt-get install -y "$@" >/dev/null 2>&1 ;;
+    dnf) run_root dnf install -y "$@" >/dev/null 2>&1 ;;
+    yum) run_root yum install -y "$@" >/dev/null 2>&1 ;;
+  esac
+}
 ensure_pkg() {
   local pkg="$1"
-  if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+  if ! pm_is_installed "$pkg"; then
     log "Installing $pkg..."
-    run_root apt-get install -y "$pkg" >/dev/null 2>&1 || warn "Could not install $pkg."
+    pm_install "$pkg" || warn "Could not install $pkg (continuing)."
   fi
 }
 
+log "Refreshing package index..."
+pm_update
+
 if ! command -v curl >/dev/null 2>&1; then
-  log "curl not found. Installing..."
-  run_root apt-get install -y curl >/dev/null 2>&1
+  log "Installing curl..."
+  pm_install curl || pm_install curl-minimal || warn "Could not install curl."
 fi
 ensure_pkg ca-certificates
-ensure_pkg gnupg
-# build tools help if better-sqlite3 needs to compile (usually prebuilt binaries exist)
-ensure_pkg build-essential
-ensure_pkg python3
+
+if [ "$PKG" = "apt" ]; then
+  ensure_pkg gnupg
+  ensure_pkg build-essential
+  ensure_pkg python3
+else
+  # RHEL/Alma/Rocky: toolchain for native module fallback builds (better-sqlite3).
+  log "Installing build tools (gcc-c++, make, python3)..."
+  pm_install gcc-c++ make python3 tar \
+    || run_root dnf groupinstall -y "Development Tools" >/dev/null 2>&1 \
+    || warn "Could not install build tools (continuing; prebuilt binaries may still work)."
+fi
 ok "Base packages ready."
 
 # ---- 3. Node.js LTS -------------------------------------------------------
@@ -74,9 +118,19 @@ fi
 
 if [ "$need_node" = true ]; then
   log "Installing Node.js LTS (v20) via NodeSource..."
-  curl -fsSL https://deb.nodesource.com/setup_20.x | run_root bash - >/dev/null 2>&1
-  run_root apt-get install -y nodejs >/dev/null 2>&1
-  ok "Installed Node.js $(node -v)."
+  if [ "$PKG" = "apt" ]; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | run_root bash - >/dev/null 2>&1
+    pm_install nodejs
+  else
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | run_root bash - >/dev/null 2>&1
+    pm_install nodejs
+  fi
+  if command -v node >/dev/null 2>&1; then
+    ok "Installed Node.js $(node -v)."
+  else
+    err "Node.js installation failed. Please install Node.js 20+ manually and re-run."
+    exit 1
+  fi
 fi
 
 command -v npm >/dev/null 2>&1 || { err "npm is not available after Node install."; exit 1; }
@@ -165,12 +219,17 @@ pm2 save >/dev/null 2>&1 || true
 ok "PM2 configured."
 
 # ---- 9. Firewall ----------------------------------------------------------
-if command -v ufw >/dev/null 2>&1; then
-  log "Opening port ${PORT} in UFW firewall..."
+if command -v ufw >/dev/null 2>&1 && run_root ufw status >/dev/null 2>&1; then
+  log "Opening port ${PORT} in UFW..."
   run_root ufw allow "${PORT}/tcp" >/dev/null 2>&1 || warn "Could not modify UFW rules."
-  ok "Firewall rule added for port ${PORT}."
+  ok "Firewall rule added for port ${PORT} (ufw)."
+elif command -v firewall-cmd >/dev/null 2>&1 && run_root firewall-cmd --state >/dev/null 2>&1; then
+  log "Opening port ${PORT} in firewalld..."
+  run_root firewall-cmd --permanent --add-port="${PORT}/tcp" >/dev/null 2>&1 || warn "Could not add firewalld rule."
+  run_root firewall-cmd --reload >/dev/null 2>&1 || true
+  ok "Firewall rule added for port ${PORT} (firewalld)."
 else
-  warn "UFW not installed; skipping firewall configuration."
+  warn "No active ufw/firewalld detected; skipping. Open port ${PORT}/tcp manually if needed."
 fi
 
 # ---- 10. Detect server IP -------------------------------------------------
