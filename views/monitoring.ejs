@@ -1,0 +1,33 @@
+<%- include('partials/layout-open') %>
+
+<div class="sm-card mb-3">
+  <div class="sm-card-head">
+    <span><i class="bi bi-diagram-3"></i> Service Status</span>
+    <span class="text-secondary small" id="svcUpdated">—</span>
+  </div>
+  <div class="row g-3" id="serviceGrid">
+    <div class="col-12 text-secondary text-center py-3">Loading…</div>
+  </div>
+</div>
+
+<div class="sm-card">
+  <div class="sm-card-head">
+    <span><i class="bi bi-boxes"></i> PM2 Processes</span>
+    <span class="badge text-bg-secondary" id="pm2Summary">—</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table sm-table mb-0">
+      <thead>
+        <tr>
+          <th>Name</th><th>Status</th><th>PID</th><th>CPU</th><th>Memory</th><th>Restarts</th><th>Uptime</th>
+        </tr>
+      </thead>
+      <tbody id="pm2Body">
+        <tr><td colspan="7" class="text-secondary text-center">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>window.SM_PAGE = 'monitoring';</script>
+<%- include('partials/layout-close') %>

@@ -1,0 +1,30 @@
+<%- include('partials/layout-open') %>
+
+<div class="sm-card">
+  <div class="sm-card-head flex-wrap gap-2">
+    <span><i class="bi bi-file-earmark-text"></i> Log Viewer</span>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <select class="form-select form-select-sm" id="logSelect" style="min-width:200px">
+        <% if (sources.length === 0) { %>
+          <option value="">No log sources configured</option>
+        <% } %>
+        <% sources.forEach(function(s){ %>
+          <option value="<%= s.path %>" data-exists="<%= s.exists %>">
+            <%= s.label %><%= s.exists ? '' : ' (missing)' %>
+          </option>
+        <% }) %>
+      </select>
+      <div class="input-group input-group-sm" style="min-width:200px">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" id="logSearch" placeholder="Search…" />
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" id="logRefresh"><i class="bi bi-arrow-clockwise"></i></button>
+      <button class="btn btn-sm btn-outline-primary" id="logDownload"><i class="bi bi-download"></i> Download</button>
+    </div>
+  </div>
+  <div class="sm-log-meta text-secondary small px-1 pb-2" id="logMeta">Select a log source.</div>
+  <pre class="sm-log-view" id="logView">—</pre>
+</div>
+
+<script>window.SM_PAGE = 'logs';</script>
+<%- include('partials/layout-close') %>

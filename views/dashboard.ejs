@@ -1,0 +1,105 @@
+<%- include('partials/layout-open') %>
+
+<div class="row g-3 mb-1" id="statCards">
+  <div class="col-6 col-xl-3">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-cpu"></i> CPU</div>
+      <div class="sm-stat-value"><span id="cpuValue">0</span><small>%</small></div>
+      <div class="progress sm-progress"><div class="progress-bar bg-info" id="cpuBar" style="width:0%"></div></div>
+      <div class="sm-stat-sub" id="cpuSub">— cores</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-memory"></i> RAM</div>
+      <div class="sm-stat-value"><span id="ramValue">0</span><small>%</small></div>
+      <div class="progress sm-progress"><div class="progress-bar bg-success" id="ramBar" style="width:0%"></div></div>
+      <div class="sm-stat-sub" id="ramSub">— / —</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-hdd"></i> Disk</div>
+      <div class="sm-stat-value"><span id="diskValue">0</span><small>%</small></div>
+      <div class="progress sm-progress"><div class="progress-bar bg-warning" id="diskBar" style="width:0%"></div></div>
+      <div class="sm-stat-sub" id="diskSub">— / —</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-activity"></i> Load (1m)</div>
+      <div class="sm-stat-value"><span id="loadValue">0</span></div>
+      <div class="progress sm-progress"><div class="progress-bar bg-primary" id="loadBar" style="width:0%"></div></div>
+      <div class="sm-stat-sub" id="loadSub">— / — / —</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-1">
+  <div class="col-12 col-xl-8">
+    <div class="sm-card">
+      <div class="sm-card-head">
+        <span><i class="bi bi-graph-up"></i> CPU &amp; RAM (live)</span>
+      </div>
+      <div class="sm-chart-wrap"><canvas id="usageChart" height="110"></canvas></div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <div class="sm-card h-100">
+      <div class="sm-card-head"><span><i class="bi bi-ethernet"></i> Network Traffic</span></div>
+      <div class="sm-net">
+        <div class="sm-net-item">
+          <span class="sm-net-label"><i class="bi bi-arrow-down-circle text-info"></i> Download</span>
+          <span class="sm-net-value" id="netRx">0 B/s</span>
+        </div>
+        <div class="sm-net-item">
+          <span class="sm-net-label"><i class="bi bi-arrow-up-circle text-success"></i> Upload</span>
+          <span class="sm-net-value" id="netTx">0 B/s</span>
+        </div>
+        <hr />
+        <div class="sm-net-item small text-secondary">
+          <span>Total received</span><span id="netRxTotal">—</span>
+        </div>
+        <div class="sm-net-item small text-secondary">
+          <span>Total sent</span><span id="netTxTotal">—</span>
+        </div>
+      </div>
+      <div class="sm-chart-wrap"><canvas id="netChart" height="90"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <div class="sm-card h-100">
+      <div class="sm-card-head"><span><i class="bi bi-info-circle"></i> System Information</span></div>
+      <table class="table sm-table mb-0">
+        <tbody>
+          <tr><td>Hostname</td><td id="osHostname">—</td></tr>
+          <tr><td>OS</td><td id="osDistro">—</td></tr>
+          <tr><td>Kernel</td><td id="osKernel">—</td></tr>
+          <tr><td>Architecture</td><td id="osArch">—</td></tr>
+          <tr><td>CPU Model</td><td id="cpuBrand">—</td></tr>
+          <tr><td>Node.js</td><td id="osNode">—</td></tr>
+          <tr><td>Uptime</td><td id="osUptime">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="sm-card h-100">
+      <div class="sm-card-head"><span><i class="bi bi-hdd-stack"></i> Filesystems</span></div>
+      <div class="table-responsive">
+        <table class="table sm-table mb-0">
+          <thead><tr><th>Mount</th><th>Used</th><th>Size</th><th style="width:35%">Usage</th></tr></thead>
+          <tbody id="fsBody">
+            <tr><td colspan="4" class="text-secondary text-center">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>window.SM_PAGE = 'dashboard';</script>
+<%- include('partials/layout-close') %>

@@ -1,0 +1,65 @@
+'use strict';
+
+/**
+ * Renders the main authenticated pages (shells). Live data is loaded
+ * client-side from the JSON API and auto-refreshed.
+ */
+
+const alertRepository = require('../repositories/alertRepository');
+const logService = require('../services/logService');
+const alertService = require('../services/alertService');
+
+function dashboard(req, res) {
+  res.render('dashboard', {
+    title: 'Dashboard',
+    activePage: 'dashboard',
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
+function monitoring(req, res) {
+  res.render('monitoring', {
+    title: 'Monitoring',
+    activePage: 'monitoring',
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
+function mail(req, res) {
+  res.render('mail', {
+    title: 'Mail',
+    activePage: 'mail',
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
+function logs(req, res) {
+  res.render('logs', {
+    title: 'Logs',
+    activePage: 'logs',
+    sources: logService.listLogs(),
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
+function alerts(req, res) {
+  res.render('alerts', {
+    title: 'Alerts',
+    activePage: 'alerts',
+    thresholds: alertService.thresholds(),
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
+function settings(req, res) {
+  res.render('settings', {
+    title: 'Settings',
+    activePage: 'settings',
+    thresholds: alertService.thresholds(),
+    saved: req.query.saved || null,
+    error: null,
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
+module.exports = { dashboard, monitoring, mail, logs, alerts, settings };

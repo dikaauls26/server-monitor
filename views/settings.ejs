@@ -1,0 +1,81 @@
+<%- include('partials/layout-open') %>
+
+<% if (saved === 'password') { %>
+  <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Password updated successfully.</div>
+<% } else if (saved === 'port') { %>
+  <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Port saved to <code>.env</code>. Restart to apply: <code>pm2 restart server-monitor</code>.</div>
+<% } else if (saved === 'thresholds') { %>
+  <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Alert thresholds updated.</div>
+<% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i> <%= error %></div>
+<% } %>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <div class="sm-card h-100">
+      <div class="sm-card-head"><span><i class="bi bi-key"></i> Change Password</span></div>
+      <form method="POST" action="/settings/password" autocomplete="off">
+        <div class="mb-3">
+          <label class="form-label">Current password</label>
+          <input type="password" class="form-control" name="current_password" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">New password</label>
+          <input type="password" class="form-control" name="new_password" minlength="8" required />
+          <div class="form-text">At least 8 characters.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Confirm new password</label>
+          <input type="password" class="form-control" name="confirm_password" minlength="8" required />
+        </div>
+        <button class="btn btn-primary"><i class="bi bi-save me-1"></i> Update password</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="sm-card mb-3">
+      <div class="sm-card-head"><span><i class="bi bi-hdd-network"></i> Change Port</span></div>
+      <form method="POST" action="/settings/port">
+        <div class="mb-3">
+          <label class="form-label">HTTP port</label>
+          <input type="number" class="form-control" name="port" min="1" max="65535"
+                 value="<%= process.env.PORT || 19091 %>" required />
+          <div class="form-text">Saved to <code>.env</code>. Requires a restart to take effect.</div>
+        </div>
+        <button class="btn btn-primary"><i class="bi bi-save me-1"></i> Save port</button>
+      </form>
+    </div>
+
+    <div class="sm-card">
+      <div class="sm-card-head"><span><i class="bi bi-sliders"></i> Alert Thresholds</span></div>
+      <form method="POST" action="/settings/thresholds">
+        <div class="row g-2">
+          <div class="col-4">
+            <label class="form-label">CPU %</label>
+            <input type="number" class="form-control" name="cpu" min="1" max="100" value="<%= thresholds.cpu %>" />
+          </div>
+          <div class="col-4">
+            <label class="form-label">RAM %</label>
+            <input type="number" class="form-control" name="ram" min="1" max="100" value="<%= thresholds.ram %>" />
+          </div>
+          <div class="col-4">
+            <label class="form-label">Disk %</label>
+            <input type="number" class="form-control" name="disk" min="1" max="100" value="<%= thresholds.disk %>" />
+          </div>
+        </div>
+        <button class="btn btn-primary mt-3"><i class="bi bi-save me-1"></i> Save thresholds</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="sm-card mt-3">
+  <div class="sm-card-head"><span><i class="bi bi-box-arrow-right"></i> Session</span></div>
+  <p class="text-secondary mb-3">End your current session and return to the login screen.</p>
+  <a href="/logout" class="btn btn-outline-danger"><i class="bi bi-box-arrow-right me-1"></i> Logout</a>
+</div>
+
+<script>window.SM_PAGE = 'settings';</script>
+<%- include('partials/layout-close') %>

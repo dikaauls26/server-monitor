@@ -1,0 +1,32 @@
+<aside class="sm-sidebar" id="smSidebar">
+  <div class="sm-brand">
+    <i class="bi bi-hdd-network-fill"></i>
+    <span>Server Monitor</span>
+  </div>
+  <nav class="sm-nav">
+    <a href="/dashboard" class="sm-nav-link <%= activePage === 'dashboard' ? 'active' : '' %>">
+      <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+    </a>
+    <a href="/monitoring" class="sm-nav-link <%= activePage === 'monitoring' ? 'active' : '' %>">
+      <i class="bi bi-hdd-stack"></i><span>Monitoring</span>
+    </a>
+    <a href="/mail" class="sm-nav-link <%= activePage === 'mail' ? 'active' : '' %>">
+      <i class="bi bi-envelope-at"></i><span>Mail</span>
+    </a>
+    <a href="/logs" class="sm-nav-link <%= activePage === 'logs' ? 'active' : '' %>">
+      <i class="bi bi-file-earmark-text"></i><span>Logs</span>
+    </a>
+    <a href="/alerts" class="sm-nav-link <%= activePage === 'alerts' ? 'active' : '' %>">
+      <i class="bi bi-bell"></i><span>Alerts</span>
+      <span class="badge text-bg-danger sm-alert-badge <%= (typeof alertCount !== 'undefined' && alertCount > 0) ? '' : 'd-none' %>" id="sidebarAlertBadge"><%= typeof alertCount !== 'undefined' ? alertCount : 0 %></span>
+    </a>
+    <a href="/settings" class="sm-nav-link <%= activePage === 'settings' ? 'active' : '' %>">
+      <i class="bi bi-gear"></i><span>Settings</span>
+    </a>
+  </nav>
+  <div class="sm-sidebar-footer">
+    <a href="/logout" class="sm-nav-link text-danger">
+      <i class="bi bi-box-arrow-right"></i><span>Logout</span>
+    </a>
+  </div>
+</aside>

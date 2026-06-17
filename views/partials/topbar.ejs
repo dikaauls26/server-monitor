@@ -1,0 +1,23 @@
+<header class="sm-topbar">
+  <button class="btn btn-sm btn-outline-secondary sm-menu-toggle" id="smMenuToggle" type="button" aria-label="Toggle menu">
+    <i class="bi bi-list"></i>
+  </button>
+  <h1 class="sm-topbar-title"><%= typeof title !== 'undefined' ? title : 'Dashboard' %></h1>
+  <div class="sm-topbar-right">
+    <span class="sm-live-indicator" id="smLive" title="Live updates">
+      <span class="sm-live-dot"></span> Live
+    </span>
+    <span class="sm-host text-secondary d-none d-md-inline" id="smHostname">—</span>
+    <span class="dropdown">
+      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" type="button">
+        <i class="bi bi-person-circle"></i>
+        <%= currentUser ? currentUser.username : 'user' %>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="/settings"><i class="bi bi-gear me-2"></i>Settings</a></li>
+        <li><hr class="dropdown-divider" /></li>
+        <li><a class="dropdown-item text-danger" href="/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+      </ul>
+    </span>
+  </div>
+</header>

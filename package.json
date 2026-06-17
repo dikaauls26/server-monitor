@@ -1,0 +1,39 @@
+{
+  "name": "server-monitor",
+  "version": "1.0.0",
+  "description": "Production-ready server monitoring dashboard built with Node.js, Express, Bootstrap 5 and SQLite.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "migrate": "node database/migrate.js",
+    "seed": "node database/seed.js",
+    "setup": "node database/migrate.js && node database/seed.js"
+  },
+  "keywords": [
+    "server",
+    "monitoring",
+    "dashboard",
+    "express",
+    "sqlite",
+    "pm2"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.3.0",
+    "compression": "^1.7.4",
+    "connect-sqlite3": "^0.9.15",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.4.0",
+    "express-session": "^1.18.0",
+    "helmet": "^7.1.0",
+    "systeminformation": "^5.23.5"
+  }
+}

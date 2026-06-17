@@ -1,0 +1,45 @@
+<%- include('partials/layout-open') %>
+
+<div class="row g-3 mb-1">
+  <div class="col-12 col-md-4">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-cpu"></i> CPU Threshold</div>
+      <div class="sm-stat-value"><span><%= thresholds.cpu %></span><small>%</small></div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-memory"></i> RAM Threshold</div>
+      <div class="sm-stat-value"><span><%= thresholds.ram %></span><small>%</small></div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-hdd"></i> Disk Threshold</div>
+      <div class="sm-stat-value"><span><%= thresholds.disk %></span><small>%</small></div>
+    </div>
+  </div>
+</div>
+
+<div class="sm-card">
+  <div class="sm-card-head flex-wrap gap-2">
+    <span><i class="bi bi-bell"></i> Alert History</span>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" id="alertAckAll"><i class="bi bi-check2-all"></i> Acknowledge all</button>
+      <button class="btn btn-sm btn-outline-danger" id="alertClear"><i class="bi bi-trash"></i> Clear</button>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table sm-table mb-0">
+      <thead>
+        <tr><th>Time</th><th>Level</th><th>Metric</th><th>Message</th><th></th></tr>
+      </thead>
+      <tbody id="alertBody">
+        <tr><td colspan="5" class="text-secondary text-center">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>window.SM_PAGE = 'alerts';</script>
+<%- include('partials/layout-close') %>

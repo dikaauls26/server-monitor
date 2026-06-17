@@ -1,0 +1,56 @@
+<%- include('partials/layout-open') %>
+
+<div class="row g-3 mb-1">
+  <div class="col-6 col-xl-3">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-inboxes"></i> Queued</div>
+      <div class="sm-stat-value"><span id="mailTotal">0</span></div>
+      <div class="sm-stat-sub">total in queue</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-hourglass-split"></i> Pending</div>
+      <div class="sm-stat-value"><span id="mailDeferred">0</span></div>
+      <div class="sm-stat-sub">deferred</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-send"></i> Active</div>
+      <div class="sm-stat-value"><span id="mailActive">0</span></div>
+      <div class="sm-stat-sub">being delivered</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="sm-card sm-stat">
+      <div class="sm-stat-head"><i class="bi bi-x-octagon"></i> Failed</div>
+      <div class="sm-stat-value text-danger"><span id="mailFailed">0</span></div>
+      <div class="sm-stat-sub">delivery errors</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-5">
+    <div class="sm-card h-100">
+      <div class="sm-card-head"><span><i class="bi bi-hdd-network"></i> SMTP Status</span></div>
+      <table class="table sm-table mb-0">
+        <tbody>
+          <tr><td>Postfix service</td><td id="smtpPostfix"><span class="sm-pill">—</span></td></tr>
+          <tr><td>Port 25 (SMTP)</td><td id="smtpPort25"><span class="sm-pill">—</span></td></tr>
+          <tr><td>Port 587 (Submission)</td><td id="smtpPort587"><span class="sm-pill">—</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-12 col-lg-7">
+    <div class="sm-card h-100">
+      <div class="sm-card-head"><span><i class="bi bi-list-task"></i> Queue Output</span></div>
+      <pre class="sm-log-view mb-0" id="mailRaw">No queue data.</pre>
+    </div>
+  </div>
+</div>
+
+<script>window.SM_PAGE = 'mail';</script>
+<%- include('partials/layout-close') %>
