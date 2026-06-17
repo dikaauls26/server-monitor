@@ -64,11 +64,11 @@ ok "Base packages ready."
 need_node=true
 if command -v node >/dev/null 2>&1; then
   NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
-  if [ "${NODE_MAJOR:-0}" -ge 18 ]; then
+  if [ "${NODE_MAJOR:-0}" -ge 20 ]; then
     need_node=false
     ok "Node.js $(node -v) already installed."
   else
-    warn "Node.js $(node -v) is too old (need >= 18). Upgrading to LTS."
+    warn "Node.js $(node -v) is too old (need >= 20). Upgrading to LTS."
   fi
 fi
 
@@ -90,6 +90,20 @@ else
   npm install --omit=dev
 fi
 ok "Dependencies installed."
+
+# Verify the native SQLite module loads against THIS Node.js ABI.
+# If Node was just upgraded, a stale prebuilt binary may remain — rebuild it.
+log "Verifying native modules (better-sqlite3)..."
+if ! node -e "require('better-sqlite3')" >/dev/null 2>&1; then
+  warn "Native SQLite binary mismatch. Rebuilding from source..."
+  npm rebuild better-sqlite3 --build-from-source >/dev/null 2>&1 \
+    || npm install better-sqlite3 --build-from-source >/dev/null 2>&1 || true
+  if ! node -e "require('better-sqlite3')" >/dev/null 2>&1; then
+    err "Could not load better-sqlite3. Ensure build-essential & python3 are installed, then re-run."
+    exit 1
+  fi
+fi
+ok "Native modules verified."
 
 # ---- 5. Generate .env -----------------------------------------------------
 if [ ! -f .env ]; then

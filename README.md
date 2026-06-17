@@ -4,7 +4,7 @@ A production-ready **server monitoring dashboard** built with **Node.js + Expres
 No Docker required. Clone, run one script, and the dashboard is live.
 
 ![status](https://img.shields.io/badge/status-production--ready-brightgreen)
-![node](https://img.shields.io/badge/node-%3E%3D18-339933)
+![node](https://img.shields.io/badge/node-%3E%3D20-339933)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
 ---
