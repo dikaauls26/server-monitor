@@ -202,16 +202,21 @@
   // MONITORING
   // ===================================================================
   function initMonitoring() {
-    var icons = { node: 'bi-node-plus', mysql: 'bi-database', redis: 'bi-database-fill', nginx: 'bi-hdd-rack', openlitespeed: 'bi-lightning-charge', postfix: 'bi-envelope' };
-    // Services that can be controlled via systemctl from the dashboard.
-    var CONTROLLABLE = { nginx: 1, mysql: 1, redis: 1, postfix: 1, openlitespeed: 1 };
+    var icons = { node: 'bi-node-plus', mysql: 'bi-database', redis: 'bi-database-fill', nginx: 'bi-hdd-rack', openlitespeed: 'bi-lightning-charge', lscpd: 'bi-shield-lock', postfix: 'bi-envelope' };
 
-    function ctlButtons(key) {
-      if (!CONTROLLABLE[key]) return '';
+    function statusPill(s) {
+      if (s.status === 'not-installed' || s.installed === false) {
+        return '<span class="sm-pill not-installed"><span class="dot"></span>not installed</span>';
+      }
+      return pill(s.status);
+    }
+
+    function ctlButtons(s) {
+      if (!s.controllable) return '';
       return '<div class="btn-group btn-group-sm sm-ctl">' +
-        '<button class="btn btn-outline-success" data-ctl="start" data-svc="' + key + '" title="Start"><i class="bi bi-play-fill"></i></button>' +
-        '<button class="btn btn-outline-primary" data-ctl="restart" data-svc="' + key + '" title="Restart"><i class="bi bi-arrow-clockwise"></i></button>' +
-        '<button class="btn btn-outline-danger" data-ctl="stop" data-svc="' + key + '" title="Stop"><i class="bi bi-stop-fill"></i></button>' +
+        '<button class="btn btn-outline-success" data-ctl="start" data-svc="' + s.key + '" title="Start"><i class="bi bi-play-fill"></i></button>' +
+        '<button class="btn btn-outline-primary" data-ctl="restart" data-svc="' + s.key + '" title="Restart"><i class="bi bi-arrow-clockwise"></i></button>' +
+        '<button class="btn btn-outline-danger" data-ctl="stop" data-svc="' + s.key + '" title="Stop"><i class="bi bi-stop-fill"></i></button>' +
         '</div>';
     }
 
@@ -230,7 +235,7 @@
           var icon = icons[s.key] || 'bi-gear';
           return '<div class="col-12 col-md-6 col-xl-4"><div class="sm-service">' +
             '<span class="name"><i class="bi ' + icon + '"></i>' + esc(s.label) + '</span>' +
-            '<span class="d-flex align-items-center gap-2">' + pill(s.status) + ctlButtons(s.key) + '</span>' +
+            '<span class="d-flex align-items-center gap-2">' + statusPill(s) + ctlButtons(s) + '</span>' +
             '</div></div>';
         }).join('');
       }
