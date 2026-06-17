@@ -112,10 +112,14 @@ else
 fi
 ok "Session secret set."
 
-# Load .env so we know the configured PORT / admin user.
-set -a; . ./.env; set +a
-PORT="${PORT:-19091}"
-ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
+# Read configured PORT / admin user from .env WITHOUT sourcing it.
+# (Sourcing breaks on values that contain spaces, e.g. log path labels.)
+get_env() {
+  grep -E "^$1=" .env | head -n1 | cut -d= -f2- \
+    | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//"
+}
+PORT="$(get_env PORT)"; PORT="${PORT:-19091}"
+ADMIN_USERNAME="$(get_env ADMIN_USERNAME)"; ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
 
 # ---- 7. Database: migrate + seed -----------------------------------------
 mkdir -p storage logs
