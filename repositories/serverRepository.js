@@ -1,6 +1,7 @@
 'use strict';
 
 const { getDb } = require('../database/db');
+const credentialCrypto = require('../services/credentialCrypto');
 
 function rowToServer(row) {
   if (!row) return null;
@@ -12,10 +13,20 @@ function rowToServer(row) {
     username: row.username,
     hasPassword: Boolean(row.password),
     hasPrivateKey: Boolean(row.private_key),
+    passwordEncrypted: row.password ? credentialCrypto.isEncrypted(row.password) : null,
+    keyEncrypted: row.private_key ? credentialCrypto.isEncrypted(row.private_key) : null,
     autoConnect: row.auto_connect === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function storeSecret(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (credentialCrypto.isConfigured()) {
+    return credentialCrypto.encrypt(value);
+  }
+  return value;
 }
 
 function list() {
@@ -30,7 +41,24 @@ function getById(id) {
 
 function getCredentials(id) {
   const db = getDb();
-  return db.prepare('SELECT * FROM remote_servers WHERE id = ?').get(id);
+  const row = db.prepare('SELECT * FROM remote_servers WHERE id = ?').get(id);
+  if (!row) return null;
+
+  let password = row.password;
+  let privateKey = row.private_key;
+
+  try {
+    if (password) password = credentialCrypto.decrypt(password);
+    if (privateKey) privateKey = credentialCrypto.decrypt(privateKey);
+  } catch (err) {
+    throw new Error(`Failed to decrypt credentials for server #${id}: ${err.message}`);
+  }
+
+  return {
+    ...row,
+    password,
+    private_key: privateKey,
+  };
 }
 
 function create({ name, host, port, username, password, privateKey, autoConnect }) {
@@ -45,8 +73,8 @@ function create({ name, host, port, username, password, privateKey, autoConnect 
       host.trim(),
       port || 22,
       username.trim(),
-      password || null,
-      privateKey || null,
+      storeSecret(password || null),
+      storeSecret(privateKey || null),
       autoConnect ? 1 : 0
     );
   return getById(info.lastInsertRowid);
@@ -54,8 +82,19 @@ function create({ name, host, port, username, password, privateKey, autoConnect 
 
 function update(id, { name, host, port, username, password, privateKey, autoConnect }) {
   const db = getDb();
-  const existing = getCredentials(id);
+  const existing = db.prepare('SELECT * FROM remote_servers WHERE id = ?').get(id);
   if (!existing) return null;
+
+  let nextPassword = existing.password;
+  let nextKey = existing.private_key;
+
+  if (password !== undefined) {
+    nextPassword = password ? storeSecret(password) : null;
+  }
+  if (privateKey !== undefined) {
+    nextKey = privateKey ? storeSecret(privateKey) : null;
+  }
+
   db.prepare(
     `UPDATE remote_servers SET
        name = ?, host = ?, port = ?, username = ?,
@@ -67,8 +106,8 @@ function update(id, { name, host, port, username, password, privateKey, autoConn
     host.trim(),
     port || 22,
     username.trim(),
-    password !== undefined ? password : existing.password,
-    privateKey !== undefined ? privateKey : existing.private_key,
+    nextPassword,
+    nextKey,
     autoConnect ? 1 : 0,
     id
   );

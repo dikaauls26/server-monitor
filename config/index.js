@@ -53,8 +53,10 @@ const config = {
   isProduction: (process.env.NODE_ENV || 'production') === 'production',
 
   sessionSecret: process.env.SESSION_SECRET || 'insecure-default-change-me',
+  encryptionKey: process.env.ENCRYPTION_KEY || '',
   sessionTimeoutMinutes: int(process.env.SESSION_TIMEOUT_MINUTES, 30),
   secureCookie: bool(process.env.SECURE_COOKIE, false),
+  publicUrl: process.env.PUBLIC_URL || '',
 
   admin: {
     username: process.env.ADMIN_USERNAME || 'admin',

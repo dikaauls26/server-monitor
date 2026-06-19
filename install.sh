@@ -180,6 +180,16 @@ else
 fi
 ok "Session secret set."
 
+log "Generating encryption key for SSH credentials..."
+ENC_KEY="$(node -e 'console.log(require("crypto").randomBytes(48).toString("hex"))')"
+if grep -q '^ENCRYPTION_KEY=' .env; then
+  tmpfile="$(mktemp)"
+  sed "s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=${ENC_KEY}|" .env > "$tmpfile" && mv "$tmpfile" .env
+else
+  echo "ENCRYPTION_KEY=${ENC_KEY}" >> .env
+fi
+ok "Encryption key set."
+
 # Read configured PORT / admin user from .env WITHOUT sourcing it.
 # (Sourcing breaks on values that contain spaces, e.g. log path labels.)
 get_env() {

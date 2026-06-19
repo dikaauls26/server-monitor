@@ -28,6 +28,9 @@ function renderSettings(res, extra = {}) {
     totpSetup: false,
     qrDataUrl: null,
     backupCodes: null,
+    credentialStatus: { keyConfigured: false, servers: 0, plaintextSecrets: 0, encryptedSecrets: 0, fullyEncrypted: true },
+    secureCookie: process.env.SECURE_COOKIE === 'true',
+    publicUrl: process.env.PUBLIC_URL || '',
     ...extra,
   });
 }

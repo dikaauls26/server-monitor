@@ -10,6 +10,8 @@
   <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Two-factor authentication enabled.</div>
 <% } else if (saved === '2fa-disabled') { %>
   <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Two-factor authentication disabled.</div>
+<% } else if (saved === 'encrypted') { %>
+  <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> SSH credentials encrypted successfully.</div>
 <% } %>
 <% if (typeof error !== 'undefined' && error) { %>
   <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i> <%= error %></div>
@@ -132,10 +134,97 @@
 </div>
 
 <div class="sm-card mt-3">
+  <div class="sm-card-head">
+    <span><i class="bi bi-lock-fill"></i> SSH Credential Encryption</span>
+    <% if (credentialStatus && credentialStatus.fullyEncrypted) { %>
+      <span class="sm-pill running"><span class="dot"></span>encrypted</span>
+    <% } else { %>
+      <span class="sm-pill stopped"><span class="dot"></span><%= credentialStatus ? credentialStatus.plaintextSecrets + ' plain' : 'unknown' %></span>
+    <% } %>
+  </div>
+  <p class="text-secondary small mb-2">
+    SSH passwords and private keys are stored in SQLite using AES-256-GCM.
+    New servers are encrypted automatically when <code>ENCRYPTION_KEY</code> is set in <code>.env</code>.
+  </p>
+  <ul class="small text-secondary mb-3">
+    <li>Servers configured: <strong><%= credentialStatus ? credentialStatus.servers : 0 %></strong></li>
+    <li>Encrypted secrets: <strong><%= credentialStatus ? credentialStatus.encryptedSecrets : 0 %></strong></li>
+    <li>Plaintext secrets remaining: <strong><%= credentialStatus ? credentialStatus.plaintextSecrets : 0 %></strong></li>
+    <li>Encryption key: <strong><%= credentialStatus && credentialStatus.keyConfigured ? 'configured' : 'missing — set ENCRYPTION_KEY in .env' %></strong></li>
+  </ul>
+  <div id="encryptResult" class="alert d-none py-2 mb-3" role="alert"></div>
+  <button class="btn btn-warning" id="btnEncryptSsh" type="button"
+          <%= (credentialStatus && credentialStatus.fullyEncrypted) ? 'disabled' : '' %>>
+    <i class="bi bi-shield-lock me-1"></i> Encrypt all SSH credentials now
+  </button>
+  <p class="form-text mt-2 mb-0">Use this once after upgrade if you had servers added before encryption was enabled.</p>
+</div>
+
+<div class="sm-card mt-3">
+  <div class="sm-card-head">
+    <span><i class="bi bi-shield-fill-check"></i> HTTPS / SSL</span>
+    <% if (secureCookie) { %>
+      <span class="sm-pill running"><span class="dot"></span>secure cookies on</span>
+    <% } else { %>
+      <span class="sm-pill stopped"><span class="dot"></span>http only</span>
+    <% } %>
+  </div>
+  <p class="text-secondary small mb-2">
+    For production, put Nginx in front with Let's Encrypt SSL. The app stays on port
+    <code><%= process.env.PORT || 19091 %></code> locally; users access
+    <code>https://your-domain.com</code> (port 443).
+  </p>
+  <ol class="small text-secondary mb-3">
+    <li>Point your domain A record to this server's IP.</li>
+    <li>SSH to the server and run:<br>
+      <code class="user-select-all">bash setup-ssl.sh your-domain.com admin@your-domain.com</code>
+    </li>
+    <li>Script installs Nginx + Certbot, enables HTTPS, sets <code>SECURE_COOKIE=true</code>.</li>
+  </ol>
+  <% if (publicUrl) { %>
+    <p class="small mb-0">Public URL: <a href="<%= publicUrl %>" target="_blank" rel="noopener"><%= publicUrl %></a></p>
+  <% } %>
+</div>
+
+<div class="sm-card mt-3">
   <div class="sm-card-head"><span><i class="bi bi-box-arrow-right"></i> Session</span></div>
   <p class="text-secondary mb-3">End your current session and return to the login screen.</p>
   <a href="/logout" class="btn btn-outline-danger"><i class="bi bi-box-arrow-right me-1"></i> Logout</a>
 </div>
 
-<script>window.SM_PAGE = 'settings';</script>
+<script>
+  window.SM_PAGE = 'settings';
+  (function () {
+    var btn = document.getElementById('btnEncryptSsh');
+    var box = document.getElementById('encryptResult');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      if (!confirm('Encrypt all stored SSH passwords and private keys now?')) return;
+      btn.disabled = true;
+      fetch('/api/security/encrypt-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (box) {
+            box.className = 'alert py-2 mb-3 ' + (res.ok ? 'alert-success' : 'alert-danger');
+            box.textContent = res.message || res.error || (res.ok ? 'Done' : 'Failed');
+            box.classList.remove('d-none');
+          }
+          if (res.ok) setTimeout(function () { window.location.href = '/settings?saved=encrypted'; }, 800);
+          else btn.disabled = false;
+        })
+        .catch(function () {
+          if (box) {
+            box.className = 'alert alert-danger py-2 mb-3';
+            box.textContent = 'Request failed.';
+            box.classList.remove('d-none');
+          }
+          btn.disabled = false;
+        });
+    });
+  })();
+</script>
 <%- include('partials/layout-close') %>

@@ -9,6 +9,7 @@ const alertRepository = require('../repositories/alertRepository');
 const logService = require('../services/logService');
 const alertService = require('../services/alertService');
 const userRepository = require('../repositories/userRepository');
+const credentialMigrationService = require('../services/credentialMigrationService');
 
 function dashboard(req, res) {
   res.render('dashboard', {
@@ -80,6 +81,7 @@ function settings(req, res) {
   const user = userRepository.findById(req.session.userId);
   const backupCodes = req.session.newBackupCodes || null;
   delete req.session.newBackupCodes;
+  const credentialStatus = credentialMigrationService.getStatus();
 
   res.render('settings', {
     title: 'Settings',
@@ -92,6 +94,9 @@ function settings(req, res) {
     totpSetup: false,
     qrDataUrl: null,
     backupCodes,
+    credentialStatus,
+    secureCookie: process.env.SECURE_COOKIE === 'true',
+    publicUrl: process.env.PUBLIC_URL || '',
   });
 }
 

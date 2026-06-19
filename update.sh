@@ -24,6 +24,16 @@ fi
 log "Running database migrations..."
 node database/migrate.js
 
+if ! grep -q '^ENCRYPTION_KEY=' .env 2>/dev/null; then
+  log "Generating ENCRYPTION_KEY..."
+  ENC_KEY="$(node -e 'console.log(require("crypto").randomBytes(48).toString("hex"))')"
+  echo "ENCRYPTION_KEY=${ENC_KEY}" >> .env
+  ok "ENCRYPTION_KEY added to .env"
+fi
+
+log "Encrypting SSH credentials (if any)..."
+node -e "const r=require('./services/credentialMigrationService').encryptAll(); console.log(r.message||r.error||'done')" || warn "Credential encryption skipped."
+
 log "Restarting application..."
 if command -v pm2 >/dev/null 2>&1 && pm2 describe server-monitor >/dev/null 2>&1; then
   pm2 restart server-monitor --update-env

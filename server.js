@@ -47,6 +47,16 @@ try {
   console.error('[boot] Migration failed:', err.message);
 }
 
+const credentialMigrationService = require('./services/credentialMigrationService');
+try {
+  const enc = credentialMigrationService.encryptAll();
+  if (enc.migratedSecrets > 0) {
+    console.log(`[boot] Encrypted ${enc.migratedSecrets} SSH credential(s).`);
+  }
+} catch (err) {
+  console.warn('[boot] Credential encryption skipped:', err.message);
+}
+
 const app = express();
 app.disable('x-powered-by');
 app.locals.assetVersion = pkg.version;

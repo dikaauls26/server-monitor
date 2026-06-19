@@ -2,6 +2,7 @@
 
 const express = require('express');
 const apiController = require('../controllers/apiController');
+const securityController = require('../controllers/securityController');
 const { requireApiAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -37,5 +38,8 @@ router.delete('/servers/:id', apiController.deleteServer);
 router.get('/monitoring-all', apiController.monitoringAll);
 router.post('/monitoring-all/control', apiController.monitoringAllControl);
 router.post('/monitoring-all/connect-all', apiController.monitoringAllConnect);
+
+router.get('/security/credentials-status', securityController.credentialsStatus);
+router.post('/security/encrypt-credentials', securityController.encryptCredentials);
 
 module.exports = router;
