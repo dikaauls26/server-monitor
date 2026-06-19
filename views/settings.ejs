@@ -170,17 +170,21 @@
     <% } %>
   </div>
   <p class="text-secondary small mb-2">
-    For production, put Nginx in front with Let's Encrypt SSL. The app stays on port
-    <code><%= process.env.PORT || 19091 %></code> locally; users access
-    <code>https://your-domain.com</code> (port 443).
+    For production, put Nginx in front with SSL. Without a domain, use a self-signed certificate (browser warning)
+    or a free subdomain (DuckDNS) with Let's Encrypt.
   </p>
-  <ol class="small text-secondary mb-3">
-    <li>Point your domain A record to this server's IP.</li>
-    <li>SSH to the server and run:<br>
-      <code class="user-select-all">bash setup-ssl.sh your-domain.com admin@your-domain.com</code>
-    </li>
-    <li>Script installs Nginx + Certbot, enables HTTPS, sets <code>SECURE_COOKIE=true</code>.</li>
-  </ol>
+  <div class="small text-secondary mb-3">
+    <p class="mb-2"><strong>Option A — no domain (IP only):</strong></p>
+    <code class="user-select-all d-block mb-2">bash setup-ssl-selfsigned.sh</code>
+    <p class="mb-2">Then open <code>https://YOUR_SERVER_IP/</code> and accept the browser warning once.</p>
+    <p class="mb-2"><strong>Option B — free subdomain (recommended):</strong></p>
+    <ol class="mb-2">
+      <li>Register at <a href="https://www.duckdns.org" target="_blank" rel="noopener">duckdns.org</a> → get <code>name.duckdns.org</code></li>
+      <li>Point it to your server IP</li>
+      <li>Run: <code class="user-select-all">bash setup-ssl.sh name.duckdns.org your@email.com</code></li>
+    </ol>
+    <p class="mb-0"><strong>Option C — keep HTTP:</strong> use <code>http://IP:<%= process.env.PORT || 19091 %></code> + firewall restrict to your IP + 2FA enabled.</p>
+  </div>
   <% if (publicUrl) { %>
     <p class="small mb-0">Public URL: <a href="<%= publicUrl %>" target="_blank" rel="noopener"><%= publicUrl %></a></p>
   <% } %>
