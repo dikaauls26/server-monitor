@@ -6,6 +6,7 @@
  */
 
 const sshService = require('./sshService');
+const cronService = require('./cronService');
 const serverRepository = require('../repositories/serverRepository');
 const { remoteBash } = require('./shellScript');
 
@@ -142,9 +143,10 @@ async function getSnapshot(serverId) {
     }
   }
 
-  const [monRes, pm2] = await Promise.all([
+  const [monRes, pm2, cronRes] = await Promise.all([
     sshService.exec(serverId, MONITOR_SCRIPT, 20000),
     getPm2(serverId),
+    cronService.getRemote(serverId),
   ]);
 
   if (!monRes.ok && !monRes.stdout.includes('{')) {
@@ -205,6 +207,12 @@ async function getSnapshot(serverId) {
     os: { distro: m.distro || '', kernel: m.kernel || '', arch: m.arch || '' },
     services: mapServices(m.services),
     pm2,
+    cron: {
+      available: cronRes.available !== false,
+      total: cronRes.total || (cronRes.jobs ? cronRes.jobs.length : 0),
+      jobs: cronRes.jobs || [],
+      error: cronRes.error || null,
+    },
   };
 }
 

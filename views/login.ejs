@@ -12,6 +12,10 @@
         <div class="alert alert-danger py-2" role="alert">
           <i class="bi bi-exclamation-triangle-fill me-1"></i><%= error %>
         </div>
+      <% } else if (expired) { %>
+        <div class="alert alert-warning py-2" role="alert">
+          <i class="bi bi-clock-history me-1"></i>2FA session expired. Please sign in again.
+        </div>
       <% } %>
 
       <form method="POST" action="/login" autocomplete="off">

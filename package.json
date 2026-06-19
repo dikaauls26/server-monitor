@@ -1,6 +1,6 @@
 {
   "name": "server-monitor",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "Production-ready server monitoring dashboard built with Node.js, Express, Bootstrap 5 and SQLite.",
   "main": "server.js",
   "scripts": {
@@ -34,6 +34,8 @@
     "express-rate-limit": "^7.4.0",
     "express-session": "^1.18.0",
     "helmet": "^7.1.0",
+    "otplib": "^13.4.1",
+    "qrcode": "^1.5.4",
     "ssh2": "^1.16.0",
     "systeminformation": "^5.23.5"
   }

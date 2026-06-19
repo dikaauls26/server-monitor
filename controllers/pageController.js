@@ -8,6 +8,7 @@
 const alertRepository = require('../repositories/alertRepository');
 const logService = require('../services/logService');
 const alertService = require('../services/alertService');
+const userRepository = require('../repositories/userRepository');
 
 function dashboard(req, res) {
   res.render('dashboard', {
@@ -76,6 +77,10 @@ function alerts(req, res) {
 }
 
 function settings(req, res) {
+  const user = userRepository.findById(req.session.userId);
+  const backupCodes = req.session.newBackupCodes || null;
+  delete req.session.newBackupCodes;
+
   res.render('settings', {
     title: 'Settings',
     activePage: 'settings',
@@ -83,6 +88,10 @@ function settings(req, res) {
     saved: req.query.saved || null,
     error: null,
     alertCount: alertRepository.countUnacknowledged(),
+    totpEnabled: user ? user.totp_enabled : false,
+    totpSetup: false,
+    qrDataUrl: null,
+    backupCodes,
   });
 }
 

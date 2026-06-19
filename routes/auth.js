@@ -18,6 +18,8 @@ const loginLimiter = rateLimit({
 
 router.get('/login', redirectIfAuthed, authController.showLogin);
 router.post('/login', loginLimiter, redirectIfAuthed, authController.login);
+router.get('/login/2fa', authController.showLogin2fa);
+router.post('/login/2fa', loginLimiter, authController.login2fa);
 router.get('/logout', authController.logout);
 router.post('/logout', authController.logout);
 

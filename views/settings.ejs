@@ -6,6 +6,10 @@
   <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Port saved to <code>.env</code>. Restart to apply: <code>pm2 restart server-monitor</code>.</div>
 <% } else if (saved === 'thresholds') { %>
   <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Alert thresholds updated.</div>
+<% } else if (saved === '2fa-enabled') { %>
+  <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Two-factor authentication enabled.</div>
+<% } else if (saved === '2fa-disabled') { %>
+  <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Two-factor authentication disabled.</div>
 <% } %>
 <% if (typeof error !== 'undefined' && error) { %>
   <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i> <%= error %></div>
@@ -69,6 +73,62 @@
       </form>
     </div>
   </div>
+</div>
+
+<div class="sm-card mt-3">
+  <div class="sm-card-head">
+    <span><i class="bi bi-shield-lock"></i> Two-Factor Authentication (2FA)</span>
+    <% if (totpEnabled) { %>
+      <span class="sm-pill running"><span class="dot"></span>enabled</span>
+    <% } else { %>
+      <span class="sm-pill stopped"><span class="dot"></span>disabled</span>
+    <% } %>
+  </div>
+
+  <% if (backupCodes && backupCodes.length) { %>
+    <div class="alert alert-warning py-2">
+      <strong>Save these backup codes now.</strong> Each code works once if you lose your phone.
+    </div>
+    <div class="row g-2 mb-3">
+      <% backupCodes.forEach(function (code) { %>
+        <div class="col-6 col-md-3"><code class="user-select-all"><%= code %></code></div>
+      <% }); %>
+    </div>
+  <% } %>
+
+  <% if (totpSetup && qrDataUrl) { %>
+    <p class="text-secondary small">Scan this QR code with Google Authenticator, Authy, or any TOTP app.</p>
+    <div class="text-center mb-3">
+      <img src="<%= qrDataUrl %>" alt="2FA QR code" width="220" height="220" class="border rounded" />
+    </div>
+    <form method="POST" action="/settings/2fa/enable" autocomplete="off">
+      <div class="mb-3">
+        <label class="form-label">Enter 6-digit code to confirm</label>
+        <input type="text" class="form-control" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required />
+      </div>
+      <button class="btn btn-success"><i class="bi bi-shield-check me-1"></i> Enable 2FA</button>
+    </form>
+  <% } else if (totpEnabled) { %>
+    <p class="text-secondary mb-3">Sign-in requires your authenticator app code after password.</p>
+    <form method="POST" action="/settings/2fa/disable" autocomplete="off">
+      <div class="row g-2">
+        <div class="col-md-6">
+          <label class="form-label">Current password</label>
+          <input type="password" class="form-control" name="current_password" required />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Authenticator or backup code</label>
+          <input type="text" class="form-control" name="code" required />
+        </div>
+      </div>
+      <button class="btn btn-outline-danger mt-3"><i class="bi bi-shield-x me-1"></i> Disable 2FA</button>
+    </form>
+  <% } else { %>
+    <p class="text-secondary mb-3">Add an extra layer of security using an authenticator app on your phone.</p>
+    <form method="POST" action="/settings/2fa/setup">
+      <button class="btn btn-primary"><i class="bi bi-qr-code me-1"></i> Set up 2FA</button>
+    </form>
+  <% } %>
 </div>
 
 <div class="sm-card mt-3">

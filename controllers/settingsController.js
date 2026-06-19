@@ -11,6 +11,7 @@ const userRepository = require('../repositories/userRepository');
 const settingsRepository = require('../repositories/settingsRepository');
 const alertService = require('../services/alertService');
 const alertRepository = require('../repositories/alertRepository');
+const totpService = require('../services/totpService');
 const config = require('../config');
 
 const ENV_PATH = path.join(config.rootDir, '.env');
@@ -23,6 +24,10 @@ function renderSettings(res, extra = {}) {
     saved: null,
     error: null,
     alertCount: alertRepository.countUnacknowledged(),
+    totpEnabled: false,
+    totpSetup: false,
+    qrDataUrl: null,
+    backupCodes: null,
     ...extra,
   });
 }
@@ -98,4 +103,84 @@ function updateThresholds(req, res) {
   return res.redirect('/settings?saved=thresholds');
 }
 
-module.exports = { changePassword, changePort, updateThresholds };
+async function setupTotp(req, res) {
+  const user = userRepository.findById(req.session.userId);
+  if (!user) return res.redirect('/login');
+  if (user.totp_enabled) {
+    return renderSettings(res, { totpEnabled: true, error: '2FA is already enabled.' });
+  }
+
+  const secret = totpService.generateSecret();
+  req.session.totpSetupSecret = secret;
+  const qrDataUrl = await totpService.getQrDataUrl(user.username, secret);
+  return renderSettings(res, { totpEnabled: false, totpSetup: true, qrDataUrl });
+}
+
+async function enableTotp(req, res) {
+  const user = userRepository.findById(req.session.userId);
+  if (!user) return res.redirect('/login');
+
+  const secret = req.session.totpSetupSecret;
+  if (!secret) {
+    return renderSettings(res, { totpEnabled: user.totp_enabled, error: 'Start 2FA setup first.' });
+  }
+
+  const code = (req.body.code || '').trim();
+  if (!totpService.verifyToken(secret, code)) {
+    const qrDataUrl = await totpService.getQrDataUrl(user.username, secret);
+    return renderSettings(res, {
+      totpEnabled: false,
+      totpSetup: true,
+      qrDataUrl,
+      error: 'Invalid code. Enter the current 6-digit code from your authenticator app.',
+    });
+  }
+
+  const backupCodes = totpService.generateBackupCodes();
+  userRepository.enableTotp(
+    user.id,
+    secret,
+    totpService.serializeBackupHashes(totpService.hashBackupCodes(backupCodes))
+  );
+  delete req.session.totpSetupSecret;
+  req.session.newBackupCodes = backupCodes;
+  return res.redirect('/settings?saved=2fa-enabled');
+}
+
+function disableTotp(req, res) {
+  const { current_password, code } = req.body || {};
+  const user = userRepository.verifyCredentials(req.session.username, current_password || '');
+  if (!user) {
+    return renderSettings(res, { totpEnabled: true, error: 'Current password is incorrect.' });
+  }
+  if (!user.totp_enabled || !user.totp_secret) {
+    return renderSettings(res, { totpEnabled: false, error: '2FA is not enabled.' });
+  }
+
+  let verified = totpService.verifyToken(user.totp_secret, code);
+  if (!verified) {
+    const backup = totpService.verifyBackupCode(code, user.totp_backup_codes);
+    verified = backup.ok;
+    if (backup.ok) {
+      userRepository.updateBackupCodes(
+        user.id,
+        totpService.serializeBackupHashes(backup.remaining)
+      );
+    }
+  }
+  if (!verified) {
+    return renderSettings(res, { totpEnabled: true, error: 'Invalid authentication code.' });
+  }
+
+  userRepository.disableTotp(user.id);
+  return res.redirect('/settings?saved=2fa-disabled');
+}
+
+module.exports = {
+  changePassword,
+  changePort,
+  updateThresholds,
+  setupTotp,
+  enableTotp,
+  disableTotp,
+};

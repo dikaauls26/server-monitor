@@ -68,9 +68,23 @@ CREATE TABLE IF NOT EXISTS remote_servers (
 );
 `;
 
+function ensureColumn(db, table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+function migrateUserTotp(db) {
+  ensureColumn(db, 'users', 'totp_secret', 'TEXT');
+  ensureColumn(db, 'users', 'totp_enabled', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'users', 'totp_backup_codes', 'TEXT');
+}
+
 function migrate() {
   const db = getDb();
   db.exec(SCHEMA);
+  migrateUserTotp(db);
   return true;
 }
 

@@ -12,11 +12,13 @@ const controlService = require('./controlService');
 const remoteMonitorService = require('./remoteMonitorService');
 const remoteControlService = require('./remoteControlService');
 const sshService = require('./sshService');
+const cronService = require('./cronService');
 
 async function getLocalSnapshot() {
-  const [overview, services] = await Promise.all([
+  const [overview, services, cron] = await Promise.all([
     systemService.getOverview(),
     serviceMonitorService.getAll(),
+    cronService.getLocal(),
   ]);
   return {
     ok: true,
@@ -43,6 +45,12 @@ async function getLocalSnapshot() {
     },
     services: services.services,
     pm2: services.pm2,
+    cron: {
+      available: cron.available !== false,
+      total: cron.total || (cron.jobs ? cron.jobs.length : 0),
+      jobs: cron.jobs || [],
+      error: cron.reason || null,
+    },
   };
 }
 

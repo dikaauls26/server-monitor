@@ -1,0 +1,37 @@
+<%- include('partials/head') %>
+<body class="sm-login-body" data-bs-theme="dark">
+  <div class="sm-login-wrap">
+    <div class="sm-login-card">
+      <div class="sm-login-brand">
+        <i class="bi bi-shield-lock-fill"></i>
+        <h1>Two-factor auth</h1>
+        <p>Enter the 6-digit code for <strong><%= username %></strong></p>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert alert-danger py-2" role="alert">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i><%= error %>
+        </div>
+      <% } %>
+
+      <form method="POST" action="/login/2fa" autocomplete="off">
+        <div class="mb-4">
+          <label for="code" class="form-label">Authenticator code</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-phone"></i></span>
+            <input type="text" class="form-control text-center fs-5" id="code" name="code"
+                   inputmode="numeric" pattern="[0-9A-Za-z]{6,8}" maxlength="8"
+                   placeholder="000000" required autofocus autocomplete="one-time-code" />
+          </div>
+          <div class="form-text">Google Authenticator, Authy, or any TOTP app. Backup codes also work.</div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mb-2">
+          <i class="bi bi-box-arrow-in-right me-1"></i> Verify &amp; sign in
+        </button>
+        <a href="/login" class="btn btn-outline-secondary w-100">Back to login</a>
+      </form>
+    </div>
+    <p class="sm-login-footer">Server Monitor · 2FA</p>
+  </div>
+</body>
+</html>

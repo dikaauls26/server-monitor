@@ -764,11 +764,22 @@
       var disk = srv.disk || {};
       var load = srv.load || {};
       var pm2 = srv.pm2 || { apps: [], online: 0, total: 0, installed: false };
+      var cron = srv.cron || { jobs: [], total: 0, available: false };
 
       var svcRows = (srv.services || []).map(function (svc) {
         return '<tr><td>' + esc(svc.label) + '</td><td>' + statusPill(svc) + '</td><td class="text-end">' +
           ctlButtons(svc, srv.id) + '</td></tr>';
       }).join('');
+
+      var cronRows = '';
+      if (cron.jobs && cron.jobs.length) {
+        cronRows = cron.jobs.slice(0, 8).map(function (c) {
+          return '<tr><td class="small">' + esc(c.schedule || '—') + '</td><td class="small">' + esc(c.user || '—') + '</td><td class="small text-break">' + esc(c.command || '') + '</td><td class="small text-secondary">' + esc(c.source || '') + '</td></tr>';
+        }).join('');
+      } else {
+        cronRows = '<tr><td colspan="4" class="text-secondary text-center small">' +
+          (cron.available ? 'No cron jobs found' : 'Cron not available on this server') + '</td></tr>';
+      }
 
       var pm2Rows = '';
       if (pm2.installed && pm2.apps && pm2.apps.length) {
@@ -796,12 +807,16 @@
         '<span><i class="bi bi-activity"></i> Load: ' + (load.one || 0) + ' / ' + (load.five || 0) + ' / ' + (load.fifteen || 0) + '</span>' +
         '<span><i class="bi bi-clock"></i> ' + esc((srv.uptime && srv.uptime.human) || '—') + '</span>' +
         '<span><i class="bi bi-boxes"></i> PM2: ' + (pm2.online || 0) + '/' + (pm2.total || 0) + '</span>' +
+        '<span><i class="bi bi-calendar-check"></i> Cron: ' + (cron.total || 0) + '</span>' +
         '</div>' +
         '<div class="table-responsive mb-2"><table class="table sm-table mb-0"><thead><tr><th>Service</th><th>Status</th><th class="text-end">Action</th></tr></thead><tbody>' +
         svcRows + '</tbody></table></div>' +
         '<div class="sm-card-head pt-0"><span class="small"><i class="bi bi-boxes"></i> PM2</span></div>' +
         '<div class="table-responsive"><table class="table sm-table mb-0"><thead><tr><th>Name</th><th>Status</th><th>CPU</th><th>RAM</th></tr></thead><tbody>' +
         pm2Rows + '</tbody></table></div>' +
+        '<div class="sm-card-head pt-0 mt-2"><span class="small"><i class="bi bi-calendar-check"></i> Cron Jobs</span></div>' +
+        '<div class="table-responsive"><table class="table sm-table mb-0"><thead><tr><th>Schedule</th><th>User</th><th>Command</th><th>Source</th></tr></thead><tbody>' +
+        cronRows + '</tbody></table></div>' +
         '</div></div>';
     }
 
