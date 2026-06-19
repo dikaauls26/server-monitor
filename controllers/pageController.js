@@ -33,6 +33,22 @@ function mail(req, res) {
   });
 }
 
+function antivirus(req, res) {
+  res.render('antivirus', {
+    title: 'Antivirus',
+    activePage: 'antivirus',
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
+function servers(req, res) {
+  res.render('servers', {
+    title: 'Remote Servers',
+    activePage: 'servers',
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
 function logs(req, res) {
   res.render('logs', {
     title: 'Logs',
@@ -62,4 +78,4 @@ function settings(req, res) {
   });
 }
 
-module.exports = { dashboard, monitoring, mail, logs, alerts, settings };
+module.exports = { dashboard, monitoring, mail, antivirus, servers, logs, alerts, settings };

@@ -31,6 +31,22 @@
   </div>
 </div>
 
+<div class="sm-card mb-3">
+  <div class="sm-card-head"><span><i class="bi bi-trash3"></i> Queue Actions</span></div>
+  <div id="mailActionResult" class="alert d-none py-2 mb-3" role="alert"></div>
+  <div class="d-flex flex-wrap gap-2">
+    <button class="btn btn-sm btn-outline-warning" id="btnClearDefer" type="button">
+      <i class="bi bi-hourglass-bottom"></i> Clear Defer
+    </button>
+    <button class="btn btn-sm btn-outline-danger" id="btnClearPending" type="button">
+      <i class="bi bi-x-circle"></i> Clear Pending
+    </button>
+    <span class="text-secondary small align-self-center ms-md-2">
+      <i class="bi bi-info-circle"></i> Clear Defer removes deferred mail. Clear Pending removes all queued mail.
+    </span>
+  </div>
+</div>
+
 <div class="row g-3">
   <div class="col-12 col-lg-5">
     <div class="sm-card h-100">

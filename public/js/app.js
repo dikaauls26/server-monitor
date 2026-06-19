@@ -85,6 +85,51 @@
     var usageChart, netChart;
     var MAX_POINTS = 30;
     var labels = [], cpuData = [], ramData = [], rxData = [], txData = [];
+    var selectedServer = localStorage.getItem('smSelectedServer') || 'local';
+    var serverSelect = $('#serverSelect');
+    var connStatus = $('#serverConnStatus');
+
+    function loadServerList() {
+      return fetchJSON('/api/servers').then(function (res) {
+        if (!res.ok || !serverSelect) return;
+        var current = serverSelect.value || selectedServer;
+        serverSelect.innerHTML = '<option value="local">Local Server (this machine)</option>';
+        (res.data || []).forEach(function (s) {
+          var opt = document.createElement('option');
+          opt.value = String(s.id);
+          opt.textContent = s.name + ' (' + s.host + ')';
+          serverSelect.appendChild(opt);
+        });
+        if (current && serverSelect.querySelector('option[value="' + current + '"]')) {
+          serverSelect.value = current;
+        }
+        selectedServer = serverSelect.value;
+        updateConnBadge(res.data || []);
+      }).catch(function () {});
+    }
+
+    function updateConnBadge(servers) {
+      if (!connStatus) return;
+      if (selectedServer === 'local') {
+        connStatus.className = 'sm-pill running';
+        connStatus.innerHTML = '<span class="dot"></span>local';
+        return;
+      }
+      var srv = (servers || []).find(function (s) { return String(s.id) === String(selectedServer); });
+      var connected = srv && srv.connection && srv.connection.connected;
+      connStatus.className = 'sm-pill ' + (connected ? 'running' : 'stopped');
+      connStatus.innerHTML = '<span class="dot"></span>' + (connected ? 'connected' : 'disconnected');
+    }
+
+    if (serverSelect) {
+      serverSelect.addEventListener('change', function () {
+        selectedServer = serverSelect.value;
+        localStorage.setItem('smSelectedServer', selectedServer);
+        labels.length = 0; cpuData.length = 0; ramData.length = 0; rxData.length = 0; txData.length = 0;
+        loadServerList();
+      });
+      loadServerList();
+    }
 
     if (window.Chart) {
       Chart.defaults.color = '#8a95ad';
@@ -192,7 +237,8 @@
     }
 
     poller(function () {
-      return fetchJSON('/api/overview').then(function (res) {
+      var url = selectedServer === 'local' ? '/api/overview' : '/api/overview?serverId=' + encodeURIComponent(selectedServer);
+      return fetchJSON(url).then(function (res) {
         if (res.ok) { update(res.data); markLive(true); } else markLive(false);
       }).catch(function () { markLive(false); });
     }, 3000);
@@ -320,6 +366,33 @@
   // MAIL
   // ===================================================================
   function initMail() {
+    function showResult(ok, msg) {
+      var el = $('#mailActionResult');
+      if (!el) return;
+      el.className = 'alert py-2 mb-3 ' + (ok ? 'alert-success' : 'alert-danger');
+      el.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(msg);
+      el.classList.remove('d-none');
+    }
+
+    function runMailAction(url, confirmMsg, btn) {
+      if (!confirm(confirmMsg)) return;
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+      $('#mailActionResult') && $('#mailActionResult').classList.add('d-none');
+      fetchJSON(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+      }).then(function (res) {
+        showResult(res.ok, res.message || res.error || 'Done.');
+      }).catch(function () {
+        showResult(false, 'Request failed.');
+      }).then(function () {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        setTimeout(function () { if (refreshMail) refreshMail(); }, 800);
+      });
+    }
+
+    var refreshMail;
     function render(d) {
       var q = d.queue.stats || {};
       $('#mailTotal').textContent = q.total || 0;
@@ -338,11 +411,21 @@
         else raw.textContent = d.queue.raw && d.queue.raw.trim() ? d.queue.raw : 'Mail queue is empty.';
       }
     }
-    poller(function () {
+    refreshMail = function () {
       return fetchJSON('/api/mail').then(function (res) {
         if (res.ok) { render(res.data); markLive(true); } else markLive(false);
       }).catch(function () { markLive(false); });
-    }, 8000);
+    };
+    poller(refreshMail, 8000);
+
+    var btnDefer = $('#btnClearDefer');
+    var btnPending = $('#btnClearPending');
+    if (btnDefer) btnDefer.addEventListener('click', function () {
+      runMailAction('/api/mail/clear-deferred', 'Delete all DEFERRED mail from the queue?', btnDefer);
+    });
+    if (btnPending) btnPending.addEventListener('click', function () {
+      runMailAction('/api/mail/clear-pending', 'Delete ALL pending mail from the queue? This cannot be undone.', btnPending);
+    });
   }
 
   // ===================================================================
@@ -428,12 +511,192 @@
     poller(load, 8000);
   }
 
+  // ===================================================================
+  // ANTIVIRUS
+  // ===================================================================
+  function initAntivirus() {
+    var body = $('#avJobBody');
+    var output = $('#avOutput');
+    var form = $('#avScanForm');
+    var resultEl = $('#avActionResult');
+
+    function showResult(ok, msg) {
+      if (!resultEl) return;
+      resultEl.className = 'alert py-2 mb-3 ' + (ok ? 'alert-success' : 'alert-danger');
+      resultEl.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(msg);
+      resultEl.classList.remove('d-none');
+    }
+
+    function statusPill(status) {
+      var s = String(status || 'unknown').toLowerCase();
+      return '<span class="sm-pill ' + esc(s === 'done' ? 'running' : (s === 'failed' ? 'stopped' : s)) + '"><span class="dot"></span>' + esc(status) + '</span>';
+    }
+
+    function render(d) {
+      $('#avQueued').textContent = d.queued || 0;
+      $('#avRunning').textContent = d.running || 0;
+      var worker = $('#avWorker');
+      if (worker) worker.textContent = d.workerActive || d.running ? 'Active' : 'Idle';
+      var badge = $('#avQueueBadge');
+      if (badge) badge.textContent = (d.queued || 0) + ' queued · ' + (d.running || 0) + ' running';
+
+      if (!body) return;
+      if (!d.jobs || !d.jobs.length) {
+        body.innerHTML = '<tr><td colspan="7" class="text-secondary text-center">No scan jobs yet.</td></tr>';
+        return;
+      }
+      body.innerHTML = d.jobs.map(function (j) {
+        return '<tr><td>' + j.id + '</td><td>' + esc(j.scanner) + '</td><td><code>' + esc(j.path) + '</code></td><td>' +
+          statusPill(j.status) + '</td><td class="small">' + esc(j.startedAt || '—') + '</td><td class="small">' +
+          esc(j.finishedAt || '—') + '</td><td><button class="btn btn-sm btn-outline-secondary" data-view="' + j.id + '">View</button></td></tr>';
+      }).join('');
+
+      $all('[data-view]', body).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-view');
+          var job = d.jobs.find(function (x) { return String(x.id) === String(id); });
+          if (output && job) {
+            var text = job.output || job.error || '(no output yet)';
+            output.textContent = text;
+          }
+        });
+      });
+    }
+
+    function load() {
+      return fetchJSON('/api/antivirus/queue').then(function (res) {
+        if (res.ok) { render(res.data); markLive(true); } else markLive(false);
+      }).catch(function () { markLive(false); });
+    }
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var btn = $('#avSubmitBtn');
+        var original = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+        if (resultEl) resultEl.classList.add('d-none');
+        fetchJSON('/api/antivirus/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scanner: $('#avScanner').value,
+            path: $('#avPath').value
+          })
+        }).then(function (res) {
+          showResult(res.ok, res.message || res.error || 'Queued.');
+          if (res.ok) load();
+        }).catch(function () {
+          showResult(false, 'Request failed.');
+        }).then(function () {
+          if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        });
+      });
+    }
+
+    load();
+    poller(load, 4000);
+  }
+
+  // ===================================================================
+  // REMOTE SERVERS
+  // ===================================================================
+  function initServers() {
+    var body = $('#srvBody');
+    var form = $('#srvAddForm');
+    var resultEl = $('#srvActionResult');
+
+    function showResult(ok, msg) {
+      if (!resultEl) return;
+      resultEl.className = 'alert py-2 mb-3 ' + (ok ? 'alert-success' : 'alert-danger');
+      resultEl.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(msg);
+      resultEl.classList.remove('d-none');
+    }
+
+    function render(list) {
+      if (!body) return;
+      if (!list.length) {
+        body.innerHTML = '<tr><td colspan="5" class="text-secondary text-center">No remote servers configured.</td></tr>';
+        return;
+      }
+      body.innerHTML = list.map(function (s) {
+        var connected = s.connection && s.connection.connected;
+        var status = connected ? 'running' : 'stopped';
+        var statusLabel = connected ? 'connected' : (s.connection && s.connection.error ? 'error' : 'disconnected');
+        return '<tr><td>' + esc(s.name) + '</td><td><code>' + esc(s.host) + ':' + s.port + '</code></td><td>' +
+          pill(statusLabel) + '</td><td>' + (s.autoConnect ? '<i class="bi bi-check-lg text-success"></i>' : '—') +
+          '</td><td class="text-nowrap">' +
+          (connected
+            ? '<button class="btn btn-sm btn-outline-warning me-1" data-disconnect="' + s.id + '">Disconnect</button>'
+            : '<button class="btn btn-sm btn-outline-success me-1" data-connect="' + s.id + '">Connect</button>') +
+          '<button class="btn btn-sm btn-outline-danger" data-delete="' + s.id + '"><i class="bi bi-trash"></i></button></td></tr>';
+      }).join('');
+    }
+
+    function load() {
+      return fetchJSON('/api/servers').then(function (res) {
+        if (res.ok) { render(res.data || []); markLive(true); } else markLive(false);
+      }).catch(function () { markLive(false); });
+    }
+
+    function runAction(url, method, confirmMsg) {
+      if (confirmMsg && !confirm(confirmMsg)) return Promise.resolve();
+      return fetchJSON(url, {
+        method: method || 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(function (res) {
+        showResult(res.ok, res.message || res.error || 'Done.');
+        return load();
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var fd = new FormData(form);
+        fetchJSON('/api/servers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: fd.get('name'),
+            host: fd.get('host'),
+            port: fd.get('port'),
+            username: fd.get('username'),
+            password: fd.get('password'),
+            privateKey: fd.get('privateKey'),
+            autoConnect: fd.get('autoConnect') === 'on'
+          })
+        }).then(function (res) {
+          showResult(res.ok, res.ok ? 'Server saved.' : (res.error || 'Failed.'));
+          if (res.ok) { form.reset(); load(); }
+        }).catch(function () { showResult(false, 'Request failed.'); });
+      });
+    }
+
+    document.addEventListener('click', function (e) {
+      var c = e.target.closest ? e.target.closest('[data-connect]') : null;
+      if (c) { e.preventDefault(); runAction('/api/servers/' + c.getAttribute('data-connect') + '/connect', 'POST'); return; }
+      var d = e.target.closest ? e.target.closest('[data-disconnect]') : null;
+      if (d) { e.preventDefault(); runAction('/api/servers/' + d.getAttribute('data-disconnect') + '/disconnect', 'POST'); return; }
+      var del = e.target.closest ? e.target.closest('[data-delete]') : null;
+      if (del) {
+        e.preventDefault();
+        runAction('/api/servers/' + del.getAttribute('data-delete'), 'DELETE', 'Remove this server?');
+      }
+    });
+
+    load();
+    poller(load, 8000);
+  }
+
   // ---------- Boot ----------
   document.addEventListener('DOMContentLoaded', function () {
     switch (window.SM_PAGE) {
       case 'dashboard': initDashboard(); break;
       case 'monitoring': initMonitoring(); break;
       case 'mail': initMail(); break;
+      case 'antivirus': initAntivirus(); break;
+      case 'servers': initServers(); break;
       case 'logs': initLogs(); break;
       case 'alerts': initAlerts(); break;
       default: break;

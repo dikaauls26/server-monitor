@@ -1,5 +1,15 @@
 <%- include('partials/layout-open') %>
 
+<div class="sm-card mb-3">
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <label class="text-secondary small mb-0 me-1"><i class="bi bi-hdd-network"></i> Monitor:</label>
+    <select class="form-select form-select-sm" id="serverSelect" style="max-width:280px">
+      <option value="local">Local Server (this machine)</option>
+    </select>
+    <span id="serverConnStatus" class="sm-pill unknown"><span class="dot"></span>local</span>
+  </div>
+</div>
+
 <div class="row g-3 mb-1" id="statCards">
   <div class="col-6 col-xl-3">
     <div class="sm-card sm-stat">

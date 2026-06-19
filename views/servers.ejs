@@ -1,0 +1,68 @@
+<%- include('partials/layout-open') %>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-5">
+    <div class="sm-card h-100">
+      <div class="sm-card-head"><span><i class="bi bi-plus-circle"></i> Add SSH Server</span></div>
+      <div id="srvActionResult" class="alert d-none py-2 mb-3" role="alert"></div>
+      <form id="srvAddForm">
+        <div class="mb-2">
+          <label class="form-label">Display name</label>
+          <input type="text" class="form-control" name="name" required placeholder="Production VPS" />
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-8">
+            <label class="form-label">Host / IP</label>
+            <input type="text" class="form-control" name="host" required placeholder="203.0.113.10" />
+          </div>
+          <div class="col-4">
+            <label class="form-label">Port</label>
+            <input type="number" class="form-control" name="port" value="22" min="1" max="65535" />
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Username</label>
+          <input type="text" class="form-control" name="username" required placeholder="root" />
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-control" name="password" autocomplete="new-password" />
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Private key (optional)</label>
+          <textarea class="form-control" name="privateKey" rows="3" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+          <div class="form-text">Use password or private key (or both).</div>
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" name="autoConnect" id="srvAutoConnect" checked />
+          <label class="form-check-label" for="srvAutoConnect">Auto-connect on startup</label>
+        </div>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i> Save Server</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="sm-card h-100">
+      <div class="sm-card-head"><span><i class="bi bi-hdd-network"></i> Remote Servers</span></div>
+      <p class="text-secondary small">
+        Add SSH credentials to monitor other servers from the dashboard. Use the server selector on Dashboard to switch views.
+      </p>
+      <div class="table-responsive">
+        <table class="table sm-table mb-0">
+          <thead>
+            <tr>
+              <th>Name</th><th>Host</th><th>Status</th><th>Auto</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="srvBody">
+            <tr><td colspan="5" class="text-secondary text-center">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>window.SM_PAGE = 'servers';</script>
+<%- include('partials/layout-close') %>

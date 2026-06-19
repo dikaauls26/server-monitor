@@ -13,6 +13,8 @@ router.get('/', pageController.dashboard);
 router.get('/dashboard', pageController.dashboard);
 router.get('/monitoring', pageController.monitoring);
 router.get('/mail', pageController.mail);
+router.get('/antivirus', pageController.antivirus);
+router.get('/servers', pageController.servers);
 router.get('/logs', pageController.logs);
 router.get('/alerts', pageController.alerts);
 router.get('/settings', pageController.settings);

@@ -34,6 +34,7 @@
     "express-rate-limit": "^7.4.0",
     "express-session": "^1.18.0",
     "helmet": "^7.1.0",
+    "ssh2": "^1.16.0",
     "systeminformation": "^5.23.5"
   }
 }

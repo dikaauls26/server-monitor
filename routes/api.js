@@ -11,6 +11,8 @@ router.use(requireApiAuth);
 router.get('/overview', apiController.overview);
 router.get('/services', apiController.services);
 router.get('/mail', apiController.mail);
+router.post('/mail/clear-deferred', apiController.clearMailDeferred);
+router.post('/mail/clear-pending', apiController.clearMailPending);
 router.get('/logs', apiController.logs);
 router.get('/logs/download', apiController.downloadLog);
 
@@ -22,5 +24,14 @@ router.post('/alerts/:id/ack', apiController.acknowledgeAlert);
 // Service control (start/stop/restart) and system reboot.
 router.post('/control/service', apiController.controlServiceAction);
 router.post('/control/reboot', apiController.rebootServer);
+
+router.get('/antivirus/queue', apiController.antivirusQueue);
+router.post('/antivirus/scan', apiController.antivirusScan);
+
+router.get('/servers', apiController.listServers);
+router.post('/servers', apiController.createServer);
+router.post('/servers/:id/connect', apiController.connectServer);
+router.post('/servers/:id/disconnect', apiController.disconnectServer);
+router.delete('/servers/:id', apiController.deleteServer);
 
 module.exports = router;

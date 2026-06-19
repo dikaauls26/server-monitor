@@ -10,14 +10,32 @@ const mailService = require('../services/mailService');
 const logService = require('../services/logService');
 const controlService = require('../services/controlService');
 const alertRepository = require('../repositories/alertRepository');
+const antivirusService = require('../services/antivirusService');
+const sshService = require('../services/sshService');
+const remoteSystemService = require('../services/remoteSystemService');
+const serverRepository = require('../repositories/serverRepository');
 
 async function overview(req, res, next) {
   try {
+    const serverId = req.query.serverId;
+    if (serverId && serverId !== 'local') {
+      const id = parseInt(serverId, 10);
+      if (!Number.isFinite(id) || !serverRepository.getById(id)) {
+        return res.status(404).json({ ok: false, error: 'Server not found.' });
+      }
+      const remote = await remoteSystemService.getOverview(id);
+      if (!remote.ok) {
+        return res.status(502).json({ ok: false, error: remote.error });
+      }
+      const alertsCount = alertRepository.countUnacknowledged();
+      return res.json({ ok: true, data: { ...remote.data, alertCount: alertsCount } });
+    }
+
     const [system, alertsCount] = await Promise.all([
       systemService.getOverview(),
       Promise.resolve(alertRepository.countUnacknowledged()),
     ]);
-    res.json({ ok: true, data: { ...system, alertCount: alertsCount } });
+    res.json({ ok: true, data: { ...system, alertCount: alertsCount, remote: false } });
   } catch (err) {
     next(err);
   }
@@ -36,6 +54,24 @@ async function mail(req, res, next) {
   try {
     const data = await mailService.getAll();
     res.json({ ok: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function clearMailDeferred(req, res, next) {
+  try {
+    const result = await mailService.clearDeferred();
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function clearMailPending(req, res, next) {
+  try {
+    const result = await mailService.clearPending();
+    res.status(result.ok ? 200 : 400).json(result);
   } catch (err) {
     next(err);
   }
@@ -132,10 +168,99 @@ function rebootServer(req, res, next) {
   }
 }
 
+function antivirusQueue(req, res, next) {
+  try {
+    res.json({ ok: true, data: antivirusService.getQueueStatus() });
+  } catch (err) {
+    next(err);
+  }
+}
+
+function antivirusScan(req, res, next) {
+  try {
+    const { scanner, path: scanPath } = req.body || {};
+    const result = antivirusService.enqueue(scanner, scanPath);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+function listServers(req, res, next) {
+  try {
+    res.json({ ok: true, data: sshService.listStatuses() });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function createServer(req, res, next) {
+  try {
+    const { name, host, port, username, password, privateKey, autoConnect } = req.body || {};
+    if (!name || !host || !username) {
+      return res.status(400).json({ ok: false, error: 'Name, host and username are required.' });
+    }
+    if (!password && !privateKey) {
+      return res.status(400).json({ ok: false, error: 'Password or private key is required.' });
+    }
+    const server = serverRepository.create({
+      name,
+      host,
+      port: parseInt(port, 10) || 22,
+      username,
+      password: password || null,
+      privateKey: privateKey || null,
+      autoConnect: Boolean(autoConnect),
+    });
+    if (server.autoConnect) {
+      await sshService.connectServer(server.id);
+    }
+    res.json({ ok: true, data: server });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function connectServer(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'Invalid id.' });
+    const result = await sshService.connectServer(id);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+function disconnectServer(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'Invalid id.' });
+    const result = sshService.disconnectServer(id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+function deleteServer(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ ok: false, error: 'Invalid id.' });
+    sshService.disconnectServer(id);
+    const ok = serverRepository.remove(id);
+    res.json({ ok, message: ok ? 'Server removed.' : 'Server not found.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   overview,
   services,
   mail,
+  clearMailDeferred,
+  clearMailPending,
   logs,
   downloadLog,
   listAlerts,
@@ -144,4 +269,11 @@ module.exports = {
   clearAlerts,
   controlServiceAction,
   rebootServer,
+  antivirusQueue,
+  antivirusScan,
+  listServers,
+  createServer,
+  connectServer,
+  disconnectServer,
+  deleteServer,
 };

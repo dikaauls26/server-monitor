@@ -1,0 +1,70 @@
+<%- include('partials/layout-open') %>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-5">
+    <div class="sm-card h-100">
+      <div class="sm-card-head"><span><i class="bi bi-play-circle"></i> Start Scan</span></div>
+      <div id="avActionResult" class="alert d-none py-2 mb-3" role="alert"></div>
+      <form id="avScanForm">
+        <div class="mb-3">
+          <label class="form-label">Scanner</label>
+          <select class="form-select" name="scanner" id="avScanner" required>
+            <option value="clamav">ClamAV (clamscan / clamdscan)</option>
+            <option value="maldet">Maldet (Linux Malware Detect)</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Path to scan</label>
+          <input type="text" class="form-control" name="path" id="avPath" value="/home" required
+                 placeholder="/home or /var/www" />
+          <div class="form-text">Absolute path on the server. Scan runs in background queue.</div>
+        </div>
+        <button class="btn btn-primary" type="submit" id="avSubmitBtn">
+          <i class="bi bi-shield-check me-1"></i> Queue Scan
+        </button>
+      </form>
+    </div>
+  </div>
+  <div class="col-12 col-lg-7">
+    <div class="sm-card h-100">
+      <div class="sm-card-head">
+        <span><i class="bi bi-list-ol"></i> Queue Status</span>
+        <span class="badge text-bg-secondary" id="avQueueBadge">—</span>
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col-4">
+          <div class="sm-stat-sub">Queued</div>
+          <div class="h4 mb-0" id="avQueued">0</div>
+        </div>
+        <div class="col-4">
+          <div class="sm-stat-sub">Running</div>
+          <div class="h4 mb-0 text-info" id="avRunning">0</div>
+        </div>
+        <div class="col-4">
+          <div class="sm-stat-sub">Worker</div>
+          <div class="h6 mb-0" id="avWorker">—</div>
+        </div>
+      </div>
+      <pre class="sm-log-view mb-0" id="avOutput" style="max-height:220px">Select a job to view output.</pre>
+    </div>
+  </div>
+</div>
+
+<div class="sm-card">
+  <div class="sm-card-head"><span><i class="bi bi-clock-history"></i> Scan Jobs</span></div>
+  <div class="table-responsive">
+    <table class="table sm-table mb-0">
+      <thead>
+        <tr>
+          <th>ID</th><th>Scanner</th><th>Path</th><th>Status</th><th>Started</th><th>Finished</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="avJobBody">
+        <tr><td colspan="7" class="text-secondary text-center">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>window.SM_PAGE = 'antivirus';</script>
+<%- include('partials/layout-close') %>

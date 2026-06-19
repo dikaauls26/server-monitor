@@ -123,4 +123,40 @@ async function getAll() {
   };
 }
 
-module.exports = { getAll, getQueue, getSmtpStatus };
+/**
+ * Delete all deferred messages from the Postfix queue.
+ */
+async function clearDeferred() {
+  if (!isLinux) {
+    return { ok: false, error: 'Postfix queue actions are only available on Linux.' };
+  }
+  const hasPostsuper = await commandExists('postsuper');
+  if (!hasPostsuper) {
+    return { ok: false, error: 'postsuper not found. Install Postfix admin tools.' };
+  }
+  const res = await run('postsuper -d ALL deferred', { timeout: 15000 });
+  if (!res.ok) {
+    return { ok: false, error: res.stderr.trim() || res.error || 'Failed to clear deferred queue.' };
+  }
+  return { ok: true, message: 'Deferred mail queue cleared.', output: res.stdout.trim() };
+}
+
+/**
+ * Delete all pending (non-active) mail from the Postfix queue.
+ */
+async function clearPending() {
+  if (!isLinux) {
+    return { ok: false, error: 'Postfix queue actions are only available on Linux.' };
+  }
+  const hasPostsuper = await commandExists('postsuper');
+  if (!hasPostsuper) {
+    return { ok: false, error: 'postsuper not found. Install Postfix admin tools.' };
+  }
+  const res = await run('postsuper -d ALL', { timeout: 15000 });
+  if (!res.ok) {
+    return { ok: false, error: res.stderr.trim() || res.error || 'Failed to clear pending queue.' };
+  }
+  return { ok: true, message: 'All pending mail removed from queue.', output: res.stdout.trim() };
+}
+
+module.exports = { getAll, getQueue, getSmtpStatus, clearDeferred, clearPending };

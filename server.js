@@ -27,6 +27,8 @@ const migrate = require('./database/migrate');
 const { injectLocals } = require('./middleware/auth');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const alertService = require('./services/alertService');
+const antivirusService = require('./services/antivirusService');
+const sshService = require('./services/sshService');
 
 const authRoutes = require('./routes/auth');
 const pageRoutes = require('./routes/pages');
@@ -128,6 +130,10 @@ app.use(errorHandler);
 // --- Start ------------------------------------------------------------------
 const server = app.listen(config.port, config.host, () => {
   alertService.start();
+  antivirusService.resumeWorker();
+  sshService.autoConnectAll().catch((err) => {
+    console.warn('[boot] Auto-connect SSH:', err.message);
+  });
   console.log('========================================');
   console.log('  Server Monitor is running');
   console.log(`  URL:  http://${config.host === '0.0.0.0' ? '<SERVER_IP>' : config.host}:${config.port}`);
@@ -138,6 +144,7 @@ const server = app.listen(config.port, config.host, () => {
 function shutdown(signal) {
   console.log(`\n[${signal}] shutting down...`);
   alertService.stop();
+  sshService.shutdown();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 5000).unref();
 }
