@@ -719,11 +719,17 @@
     var grid = $('#maGrid');
     var resultEl = $('#maActionResult');
     var serviceSel = $('#maService');
+    var mailModalEl = $('#maModalMail');
+    var cronModalEl = $('#maModalCron');
+    var mailModal = mailModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(mailModalEl) : null;
+    var cronModal = cronModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(cronModalEl) : null;
+    var activeMailServer = null;
+    var activeCronServer = null;
 
     function showResult(ok, msg) {
       if (!resultEl) return;
       resultEl.className = 'alert py-2 mb-3 ' + (ok ? 'alert-success' : 'alert-warning');
-      resultEl.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(msg);
+      resultEl.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + msg;
       resultEl.classList.remove('d-none');
     }
 
@@ -749,24 +755,192 @@
         '</div>';
     }
 
-    function connPill(srv) {
-      if (srv.connected) {
-        return '<span class="sm-pill running"><span class="dot"></span>connected</span>';
+    function onlinePill(srv) {
+      if (srv.online) {
+        return '<span class="sm-pill running" title="Server reachable"><span class="dot"></span>online</span>';
       }
-      return '<span class="sm-pill stopped"><span class="dot"></span>disconnected</span>';
+      if (srv.connected) {
+        return '<span class="sm-pill idle" title="Connected but data incomplete"><span class="dot"></span>partial</span>';
+      }
+      return '<span class="sm-pill stopped" title="Not connected or unreachable"><span class="dot"></span>offline</span>';
+    }
+
+    function serverActions(srv) {
+      var sid = esc(String(srv.id));
+      var name = esc(srv.name || sid);
+      return '<div class="d-flex flex-wrap gap-1 mt-2">' +
+        '<button type="button" class="btn btn-sm btn-outline-danger" data-ma-reboot="' + sid + '" data-ma-name="' + name + '" title="Reboot server"><i class="bi bi-power"></i> Reboot</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-info" data-ma-mail="' + sid + '" data-ma-name="' + name + '" title="View mail queue"><i class="bi bi-envelope"></i> Mail Queue</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary" data-ma-cron="' + sid + '" data-ma-name="' + name + '" title="View cron jobs"><i class="bi bi-calendar-check"></i> Cron</button>' +
+        '</div>';
+    }
+
+    function renderMailModal(d, serverId, serverName) {
+      var body = $('#maModalMailBody');
+      var footer = $('#maModalMailFooter');
+      var title = $('#maModalMailLabel');
+      if (title) title.innerHTML = '<i class="bi bi-envelope me-1"></i> Mail Queue — ' + esc(serverName);
+      if (!body) return;
+
+      if (!d) {
+        body.innerHTML = '<div class="text-secondary text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading mail queue…</div>';
+        if (footer) footer.innerHTML = '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>';
+        return;
+      }
+
+      var q = d.queue || {};
+      var stats = q.stats || {};
+      var smtp = d.smtp || {};
+      var updated = d.timestamp ? new Date(d.timestamp).toLocaleString() : '—';
+
+      var statsHtml = '<div class="row g-2 mb-3 ma-stat-grid">' +
+        '<div class="col-6 col-md-4"><div class="ma-stat"><div class="ma-stat-label">Total</div><div class="ma-stat-val">' + (stats.total || 0) + '</div></div></div>' +
+        '<div class="col-6 col-md-4"><div class="ma-stat"><div class="ma-stat-label">Active</div><div class="ma-stat-val text-info">' + (stats.active || 0) + '</div></div></div>' +
+        '<div class="col-6 col-md-4"><div class="ma-stat"><div class="ma-stat-label">Deferred</div><div class="ma-stat-val text-warning">' + (stats.deferred || 0) + '</div></div></div>' +
+        '<div class="col-6 col-md-4"><div class="ma-stat"><div class="ma-stat-label">Hold</div><div class="ma-stat-val">' + (stats.hold || 0) + '</div></div></div>' +
+        '<div class="col-6 col-md-4"><div class="ma-stat"><div class="ma-stat-label">Failed hints</div><div class="ma-stat-val text-danger">' + (stats.failed || 0) + '</div></div></div>' +
+        '</div>';
+
+      var smtpHtml = '<div class="d-flex flex-wrap gap-3 mb-3 small">' +
+        '<span>Postfix: ' + pill(smtp.postfix || 'unknown') + '</span>' +
+        '<span>Port 25: ' + pill(smtp.port25 || 'unknown') + '</span>' +
+        (smtp.port587 ? '<span>Port 587: ' + pill(smtp.port587) + '</span>' : '') +
+        '<span class="text-secondary ms-auto"><i class="bi bi-clock"></i> ' + esc(updated) + '</span>' +
+        '</div>';
+
+      var rawText = !q.available
+        ? (q.reason || 'Mail queue not available on this server.')
+        : (q.raw && q.raw.trim() ? q.raw : 'Mail queue is empty.');
+
+      body.innerHTML = statsHtml + smtpHtml +
+        '<div class="sm-card-head pt-0 mb-2"><span class="small">Queue output</span></div>' +
+        '<pre class="sm-log-view ma-raw">' + esc(rawText) + '</pre>';
+
+      if (footer) {
+        var clearBtns = q.available
+          ? '<button type="button" class="btn btn-outline-warning" data-ma-mail-clear="deferred" data-ma-server="' + esc(String(serverId)) + '"><i class="bi bi-trash"></i> Clear Deferred</button>' +
+            '<button type="button" class="btn btn-outline-danger" data-ma-mail-clear="pending" data-ma-server="' + esc(String(serverId)) + '"><i class="bi bi-trash3"></i> Clear All Pending</button>'
+          : '';
+        footer.innerHTML = clearBtns +
+          '<button type="button" class="btn btn-outline-primary" data-ma-mail-reload="' + esc(String(serverId)) + '"><i class="bi bi-arrow-clockwise"></i> Reload</button>' +
+          '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>';
+      }
+    }
+
+    function renderCronModal(d, serverName) {
+      var body = $('#maModalCronBody');
+      var title = $('#maModalCronLabel');
+      if (title) title.innerHTML = '<i class="bi bi-calendar-check me-1"></i> Cron Jobs — ' + esc(serverName);
+      if (!body) return;
+
+      if (!d) {
+        body.innerHTML = '<div class="text-secondary text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading cron jobs…</div>';
+        return;
+      }
+
+      if (d.available === false) {
+        body.innerHTML = '<div class="alert alert-warning mb-0"><i class="bi bi-exclamation-triangle me-1"></i>' +
+          esc(d.error || 'Cron listing not available on this server.') + '</div>';
+        return;
+      }
+
+      var jobs = d.jobs || [];
+      var summary = '<div class="d-flex flex-wrap gap-3 mb-3 small text-secondary">' +
+        '<span><i class="bi bi-list-task"></i> Total jobs: <strong class="text-light">' + (d.total || jobs.length) + '</strong></span>' +
+        (d.user ? '<span><i class="bi bi-person"></i> User context: ' + esc(d.user) + '</span>' : '') +
+        '</div>';
+
+      if (!jobs.length) {
+        body.innerHTML = summary + '<div class="text-secondary text-center py-3">No cron jobs found.</div>';
+        return;
+      }
+
+      var rows = jobs.map(function (c) {
+        return '<tr><td class="small text-nowrap">' + esc(c.schedule || '—') + '</td>' +
+          '<td class="small">' + esc(c.user || '—') + '</td>' +
+          '<td class="small text-break">' + esc(c.command || '') + '</td>' +
+          '<td class="small text-secondary text-nowrap">' + esc(c.source || '') + '</td></tr>';
+      }).join('');
+
+      body.innerHTML = summary +
+        '<div class="table-responsive"><table class="table sm-table mb-0"><thead><tr>' +
+        '<th>Schedule</th><th>User</th><th>Command</th><th>Source</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div>';
+    }
+
+    function loadMailModal(serverId, serverName) {
+      activeMailServer = { id: serverId, name: serverName };
+      renderMailModal(null, serverId, serverName);
+      if (mailModal) mailModal.show();
+      return fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/mail').then(function (res) {
+        if (!res.ok) {
+          $('#maModalMailBody').innerHTML = '<div class="alert alert-danger mb-0">' + esc(res.error || 'Failed to load mail queue.') + '</div>';
+          return;
+        }
+        renderMailModal(res.data, serverId, serverName);
+      }).catch(function () {
+        $('#maModalMailBody').innerHTML = '<div class="alert alert-danger mb-0">Request failed.</div>';
+      });
+    }
+
+    function loadCronModal(serverId, serverName) {
+      activeCronServer = { id: serverId, name: serverName };
+      renderCronModal(null, serverName);
+      if (cronModal) cronModal.show();
+      return fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/cron').then(function (res) {
+        if (!res.ok) {
+          $('#maModalCronBody').innerHTML = '<div class="alert alert-danger mb-0">' + esc(res.error || 'Failed to load cron jobs.') + '</div>';
+          return;
+        }
+        renderCronModal(res.data, serverName);
+      }).catch(function () {
+        $('#maModalCronBody').innerHTML = '<div class="alert alert-danger mb-0">Request failed.</div>';
+      });
+    }
+
+    function runMailClear(action, serverId, btn) {
+      var msg = action === 'deferred'
+        ? 'Delete all DEFERRED mail from the queue on this server?'
+        : 'Delete ALL pending mail from the queue? This cannot be undone.';
+      if (!confirm(msg)) return;
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+      var path = action === 'deferred' ? 'clear-deferred' : 'clear-pending';
+      fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/mail/' + path, { method: 'POST' })
+        .then(function (res) {
+          showResult(res.ok, res.message || res.error || 'Done.');
+          if (res.ok && activeMailServer) loadMailModal(activeMailServer.id, activeMailServer.name);
+        })
+        .catch(function () { showResult(false, 'Mail action failed.'); })
+        .then(function () {
+          if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        });
+    }
+
+    function runReboot(serverId, serverName) {
+      if (!confirm('Reboot "' + serverName + '" now?\n\nAll services will restart. SSH may disconnect briefly.')) return;
+      if (resultEl) resultEl.classList.add('d-none');
+      fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/reboot', { method: 'POST' })
+        .then(function (res) {
+          showResult(res.ok, res.message || res.error || (res.ok ? 'Reboot initiated.' : 'Reboot failed.'));
+          if (res.ok) setTimeout(load, 3000);
+        })
+        .catch(function () { showResult(false, 'Reboot request failed.'); });
     }
 
     function renderServerCard(srv) {
-      var conn = connPill(srv);
+      var status = onlinePill(srv);
+      var actions = serverActions(srv);
 
       if (srv.ok === false || !srv.connected) {
         return '<div class="col-12 col-xl-6"><div class="sm-card sm-server-card h-100">' +
           '<div class="d-flex justify-content-between align-items-start mb-2">' +
-          '<div><h6 class="mb-1"><i class="bi bi-hdd-network me-1"></i>' + esc(srv.name) + '</h6>' +
+          '<div><h6 class="mb-1"><i class="bi bi-hdd-network me-1"></i>' + esc(srv.name) +
+          (srv.local ? ' <span class="badge text-bg-primary">local</span>' : '') + '</h6>' +
           '<div class="text-secondary small">' + esc(srv.host || '') + (srv.port ? ':' + srv.port : '') + '</div></div>' +
-          conn + '</div>' +
-          '<div class="alert alert-danger py-2 mb-0 small">' + esc(srv.error || 'Unable to load data') + '</div>' +
-          '</div></div>';
+          status + '</div>' +
+          '<div class="alert alert-danger py-2 mb-2 small">' + esc(srv.error || 'Unable to load data — server offline or not connected.') + '</div>' +
+          actions + '</div></div>';
       }
 
       var cpu = srv.cpu || {};
@@ -774,22 +948,11 @@
       var disk = srv.disk || {};
       var load = srv.load || {};
       var pm2 = srv.pm2 || { apps: [], online: 0, total: 0, installed: false };
-      var cron = srv.cron || { jobs: [], total: 0, available: false };
 
       var svcRows = (srv.services || []).map(function (svc) {
         return '<tr><td>' + esc(svc.label) + '</td><td>' + statusPill(svc) + '</td><td class="text-end">' +
           ctlButtons(svc, srv.id) + '</td></tr>';
       }).join('');
-
-      var cronRows = '';
-      if (cron.jobs && cron.jobs.length) {
-        cronRows = cron.jobs.slice(0, 8).map(function (c) {
-          return '<tr><td class="small">' + esc(c.schedule || '—') + '</td><td class="small">' + esc(c.user || '—') + '</td><td class="small text-break">' + esc(c.command || '') + '</td><td class="small text-secondary">' + esc(c.source || '') + '</td></tr>';
-        }).join('');
-      } else {
-        cronRows = '<tr><td colspan="4" class="text-secondary text-center small">' +
-          (cron.available ? 'No cron jobs found' : 'Cron not available on this server') + '</td></tr>';
-      }
 
       var pm2Rows = '';
       if (pm2.installed && pm2.apps && pm2.apps.length) {
@@ -807,8 +970,9 @@
         (srv.local ? ' <span class="badge text-bg-primary">local</span>' : '') + '</h6>' +
         '<div class="text-secondary small">' + esc(srv.hostname || srv.host || '') + ' · ' + esc((srv.os && srv.os.distro) || '') + '</div>' +
         '<div class="text-secondary small">' + esc((cpu.brand || 'CPU')) + ' · ' + (cpu.cores || '?') + ' cores</div></div>' +
-        conn + '</div>' +
-        '<div class="row g-2 mb-3">' +
+        status + '</div>' +
+        actions +
+        '<div class="row g-2 mb-3 mt-3">' +
         '<div class="col-4"><div class="small text-secondary">CPU</div><div class="fw-semibold">' + (cpu.usage || 0).toFixed(1) + '%</div>' + usageBar(cpu.usage, 'bg-info') + '</div>' +
         '<div class="col-4"><div class="small text-secondary">RAM</div><div class="fw-semibold">' + (mem.usage || 0).toFixed(1) + '%</div>' + usageBar(mem.usage, 'bg-success') + '</div>' +
         '<div class="col-4"><div class="small text-secondary">Disk</div><div class="fw-semibold">' + (disk.usage || 0).toFixed(1) + '%</div>' + usageBar(disk.usage, 'bg-warning') + '</div>' +
@@ -817,21 +981,19 @@
         '<span><i class="bi bi-activity"></i> Load: ' + (load.one || 0) + ' / ' + (load.five || 0) + ' / ' + (load.fifteen || 0) + '</span>' +
         '<span><i class="bi bi-clock"></i> ' + esc((srv.uptime && srv.uptime.human) || '—') + '</span>' +
         '<span><i class="bi bi-boxes"></i> PM2: ' + (pm2.online || 0) + '/' + (pm2.total || 0) + '</span>' +
-        '<span><i class="bi bi-calendar-check"></i> Cron: ' + (cron.total || 0) + '</span>' +
         '</div>' +
         '<div class="table-responsive mb-2"><table class="table sm-table mb-0"><thead><tr><th>Service</th><th>Status</th><th class="text-end">Action</th></tr></thead><tbody>' +
         svcRows + '</tbody></table></div>' +
         '<div class="sm-card-head pt-0"><span class="small"><i class="bi bi-boxes"></i> PM2</span></div>' +
         '<div class="table-responsive"><table class="table sm-table mb-0"><thead><tr><th>Name</th><th>Status</th><th>CPU</th><th>RAM</th></tr></thead><tbody>' +
         pm2Rows + '</tbody></table></div>' +
-        '<div class="sm-card-head pt-0 mt-2"><span class="small"><i class="bi bi-calendar-check"></i> Cron Jobs</span></div>' +
-        '<div class="table-responsive"><table class="table sm-table mb-0"><thead><tr><th>Schedule</th><th>User</th><th>Command</th><th>Source</th></tr></thead><tbody>' +
-        cronRows + '</tbody></table></div>' +
         '</div></div>';
     }
 
     function render(d) {
-      $('#maUpdated').textContent = (d.connected || 0) + ' / ' + (d.total || 0) + ' connected · ' + new Date(d.timestamp).toLocaleTimeString();
+      var online = d.online != null ? d.online : (d.connected || 0);
+      $('#maUpdated').textContent = online + ' / ' + (d.total || 0) + ' online · ' +
+        (d.connected || 0) + ' connected · ' + new Date(d.timestamp).toLocaleTimeString();
       if (!grid) return;
       if (!d.servers || !d.servers.length) {
         grid.innerHTML = '<div class="col-12 text-secondary text-center py-4">No servers configured. Add SSH servers in the Servers menu.</div>';
@@ -891,6 +1053,36 @@
         var sid = ctl.getAttribute('data-ma-server');
         var msg = act === 'stop' ? 'Stop ' + svc + ' on this server?' : null;
         runControl(sid, svc, act, msg);
+        return;
+      }
+      var rebootBtn = e.target.closest ? e.target.closest('[data-ma-reboot]') : null;
+      if (rebootBtn) {
+        e.preventDefault();
+        runReboot(rebootBtn.getAttribute('data-ma-reboot'), rebootBtn.getAttribute('data-ma-name') || 'server');
+        return;
+      }
+      var mailBtn = e.target.closest ? e.target.closest('[data-ma-mail]') : null;
+      if (mailBtn) {
+        e.preventDefault();
+        loadMailModal(mailBtn.getAttribute('data-ma-mail'), mailBtn.getAttribute('data-ma-name') || 'server');
+        return;
+      }
+      var cronBtn = e.target.closest ? e.target.closest('[data-ma-cron]') : null;
+      if (cronBtn) {
+        e.preventDefault();
+        loadCronModal(cronBtn.getAttribute('data-ma-cron'), cronBtn.getAttribute('data-ma-name') || 'server');
+        return;
+      }
+      var mailClear = e.target.closest ? e.target.closest('[data-ma-mail-clear]') : null;
+      if (mailClear) {
+        e.preventDefault();
+        runMailClear(mailClear.getAttribute('data-ma-mail-clear'), mailClear.getAttribute('data-ma-server'), mailClear);
+        return;
+      }
+      var mailReload = e.target.closest ? e.target.closest('[data-ma-mail-reload]') : null;
+      if (mailReload) {
+        e.preventDefault();
+        if (activeMailServer) loadMailModal(activeMailServer.id, activeMailServer.name);
       }
     });
 

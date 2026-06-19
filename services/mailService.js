@@ -169,4 +169,4 @@ async function clearPending() {
   return { ok: true, message: 'All pending mail removed from queue.', output: (res.stdout || res.stderr || '').trim() };
 }
 
-module.exports = { getAll, getQueue, getSmtpStatus, clearDeferred, clearPending };
+module.exports = { getAll, getQueue, getSmtpStatus, clearDeferred, clearPending, parseQueue };

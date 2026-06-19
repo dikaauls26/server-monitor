@@ -189,6 +189,17 @@ body.sm-body {
 /* ---------- Backdrop (mobile) ---------- */
 .sm-backdrop { display: none; }
 
+/* ---------- Monitoring All modals ---------- */
+.sm-modal { background: var(--sm-card); border: 1px solid var(--sm-border); color: var(--sm-text); }
+.sm-modal .modal-header, .sm-modal .modal-footer { border-color: var(--sm-border); }
+.ma-stat-grid .ma-stat {
+  background: var(--sm-card-2); border: 1px solid var(--sm-border);
+  border-radius: .5rem; padding: .65rem .75rem; text-align: center;
+}
+.ma-stat-label { font-size: .75rem; color: var(--sm-muted); text-transform: uppercase; letter-spacing: .03em; }
+.ma-stat-val { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+.ma-raw { max-height: 280px; font-size: .78rem; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 991.98px) {
   .sm-sidebar { transform: translateX(-100%); }

@@ -11,16 +11,36 @@ const serviceMonitorService = require('./serviceMonitorService');
 const controlService = require('./controlService');
 const remoteMonitorService = require('./remoteMonitorService');
 const remoteControlService = require('./remoteControlService');
-const sshService = require('./sshService');
+const remoteMailService = require('./remoteMailService');
+const mailService = require('./mailService');
 const cronService = require('./cronService');
+const sshService = require('./sshService');
+
+function resolveTarget(serverId) {
+  const raw = String(serverId);
+  if (raw === 'local' || raw === '0') {
+    return { local: true, remoteId: null, name: 'Local Server' };
+  }
+  const id = parseInt(raw, 10);
+  if (!Number.isFinite(id)) return null;
+  const srv = serverRepository.getById(id);
+  if (!srv) return null;
+  return { local: false, remoteId: id, name: srv.name };
+}
+
+function withOnlineFlag(snap) {
+  return {
+    ...snap,
+    online: !!(snap.connected && snap.ok !== false),
+  };
+}
 
 async function getLocalSnapshot() {
-  const [overview, services, cron] = await Promise.all([
+  const [overview, services] = await Promise.all([
     systemService.getOverview(),
     serviceMonitorService.getAll(),
-    cronService.getLocal(),
   ]);
-  return {
+  return withOnlineFlag({
     ok: true,
     id: 'local',
     name: 'Local Server',
@@ -45,13 +65,7 @@ async function getLocalSnapshot() {
     },
     services: services.services,
     pm2: services.pm2,
-    cron: {
-      available: cron.available !== false,
-      total: cron.total || (cron.jobs ? cron.jobs.length : 0),
-      jobs: cron.jobs || [],
-      error: cron.reason || null,
-    },
-  };
+  });
 }
 
 async function getAll() {
@@ -61,7 +75,7 @@ async function getAll() {
     ...remoteList.map((s) => remoteMonitorService.getSnapshot(s.id)),
   ]);
 
-  const servers = [local, ...remoteSnaps.map((snap, i) => ({
+  const servers = [local, ...remoteSnaps.map((snap, i) => withOnlineFlag({
     ...snap,
     name: snap.name || remoteList[i].name,
     host: snap.host || remoteList[i].host,
@@ -73,8 +87,71 @@ async function getAll() {
     timestamp: Date.now(),
     servers,
     connected: servers.filter((s) => s.connected).length,
+    online: servers.filter((s) => s.online).length,
     total: servers.length,
   };
+}
+
+async function getCron(serverId) {
+  const target = resolveTarget(serverId);
+  if (!target) return { ok: false, error: 'Invalid server id.' };
+
+  if (target.local) {
+    const cron = await cronService.getLocal();
+    return { ok: true, data: cron };
+  }
+
+  const conn = sshService.getStatus(target.remoteId);
+  if (!conn.connected) {
+    const connect = await sshService.connectServer(target.remoteId);
+    if (!connect.ok) return { ok: false, error: connect.error || 'Not connected' };
+  }
+
+  const cron = await cronService.getRemote(target.remoteId);
+  return { ok: true, data: cron };
+}
+
+async function getMail(serverId) {
+  const target = resolveTarget(serverId);
+  if (!target) return { ok: false, error: 'Invalid server id.' };
+
+  if (target.local) {
+    const data = await mailService.getAll();
+    return { ok: true, data };
+  }
+
+  return remoteMailService.getMail(target.remoteId);
+}
+
+async function clearMailDeferred(serverId) {
+  const target = resolveTarget(serverId);
+  if (!target) return { ok: false, error: 'Invalid server id.' };
+  if (target.local) return mailService.clearDeferred();
+  return remoteMailService.clearDeferred(target.remoteId);
+}
+
+async function clearMailPending(serverId) {
+  const target = resolveTarget(serverId);
+  if (!target) return { ok: false, error: 'Invalid server id.' };
+  if (target.local) return mailService.clearPending();
+  return remoteMailService.clearPending(target.remoteId);
+}
+
+async function reboot(serverId) {
+  const target = resolveTarget(serverId);
+  if (!target) return { ok: false, error: 'Invalid server id.' };
+
+  if (target.local) {
+    return controlService.rebootSystem();
+  }
+
+  const conn = sshService.getStatus(target.remoteId);
+  if (!conn.connected) {
+    const connect = await sshService.connectServer(target.remoteId);
+    if (!connect.ok) return { ok: false, error: connect.error || 'Not connected' };
+  }
+
+  return remoteControlService.rebootServer(target.remoteId);
 }
 
 async function controlBulk({ targets, service, action }) {
@@ -126,4 +203,14 @@ async function connectAll() {
   return { ok: true, results };
 }
 
-module.exports = { getAll, controlBulk, connectAll };
+module.exports = {
+  getAll,
+  getCron,
+  getMail,
+  clearMailDeferred,
+  clearMailPending,
+  reboot,
+  controlBulk,
+  connectAll,
+  resolveTarget,
+};

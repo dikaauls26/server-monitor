@@ -288,6 +288,51 @@ async function monitoringAllConnect(req, res, next) {
   }
 }
 
+async function monitoringAllServerCron(req, res, next) {
+  try {
+    const result = await monitoringAllService.getCron(req.params.serverId);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function monitoringAllServerMail(req, res, next) {
+  try {
+    const result = await monitoringAllService.getMail(req.params.serverId);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function monitoringAllServerMailClearDeferred(req, res, next) {
+  try {
+    const result = await monitoringAllService.clearMailDeferred(req.params.serverId);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function monitoringAllServerMailClearPending(req, res, next) {
+  try {
+    const result = await monitoringAllService.clearMailPending(req.params.serverId);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function monitoringAllServerReboot(req, res, next) {
+  try {
+    const result = await monitoringAllService.reboot(req.params.serverId);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   overview,
   services,
@@ -312,4 +357,9 @@ module.exports = {
   monitoringAll,
   monitoringAllControl,
   monitoringAllConnect,
+  monitoringAllServerCron,
+  monitoringAllServerMail,
+  monitoringAllServerMailClearDeferred,
+  monitoringAllServerMailClearPending,
+  monitoringAllServerReboot,
 };

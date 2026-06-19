@@ -32,12 +32,48 @@
     </div>
   </div>
   <p class="text-secondary small mt-2 mb-0">
-    <i class="bi bi-info-circle"></i> Shows local server + all SSH servers. Bulk actions run on every connected server.
+    <i class="bi bi-info-circle"></i> Per-server: reboot, mail queue &amp; cron open in modals (loaded on click).
   </p>
 </div>
 
 <div id="maGrid" class="row g-3">
   <div class="col-12 text-secondary text-center py-4">Loading servers…</div>
+</div>
+
+<!-- Mail queue modal -->
+<div class="modal fade" id="maModalMail" tabindex="-1" aria-labelledby="maModalMailLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content sm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="maModalMailLabel"><i class="bi bi-envelope me-1"></i> Mail Queue</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="maModalMailBody">
+        <div class="text-secondary text-center py-4">Loading…</div>
+      </div>
+      <div class="modal-footer flex-wrap gap-2" id="maModalMailFooter">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cron jobs modal -->
+<div class="modal fade" id="maModalCron" tabindex="-1" aria-labelledby="maModalCronLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content sm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="maModalCronLabel"><i class="bi bi-calendar-check me-1"></i> Cron Jobs</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="maModalCronBody">
+        <div class="text-secondary text-center py-4">Loading…</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>window.SM_PAGE = 'monitoring-all';</script>

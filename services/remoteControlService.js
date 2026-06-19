@@ -58,4 +58,17 @@ async function controlMany(serverIds, service, action) {
   return { ok, results };
 }
 
-module.exports = { controlService, controlMany };
+async function rebootServer(serverId) {
+  const cmd = 'nohup bash -c "sleep 2 && (sudo -n shutdown -r now || shutdown -r now)" >/dev/null 2>&1 & echo rebooting';
+  const res = await sshService.exec(serverId, cmd, 8000);
+  if (res.ok || /rebooting/i.test(res.stdout)) {
+    return { ok: true, serverId, message: 'Reboot command issued. Server will restart shortly.' };
+  }
+  return {
+    ok: false,
+    serverId,
+    error: (res.stderr || res.stdout || 'Reboot failed.').trim(),
+  };
+}
+
+module.exports = { controlService, controlMany, rebootServer };

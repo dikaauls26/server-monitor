@@ -36,6 +36,11 @@ router.post('/servers/:id/disconnect', apiController.disconnectServer);
 router.delete('/servers/:id', apiController.deleteServer);
 
 router.get('/monitoring-all', apiController.monitoringAll);
+router.get('/monitoring-all/server/:serverId/cron', apiController.monitoringAllServerCron);
+router.get('/monitoring-all/server/:serverId/mail', apiController.monitoringAllServerMail);
+router.post('/monitoring-all/server/:serverId/mail/clear-deferred', apiController.monitoringAllServerMailClearDeferred);
+router.post('/monitoring-all/server/:serverId/mail/clear-pending', apiController.monitoringAllServerMailClearPending);
+router.post('/monitoring-all/server/:serverId/reboot', apiController.monitoringAllServerReboot);
 router.post('/monitoring-all/control', apiController.monitoringAllControl);
 router.post('/monitoring-all/connect-all', apiController.monitoringAllConnect);
 
