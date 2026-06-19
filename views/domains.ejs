@@ -19,40 +19,47 @@
         <option value="all">All domains</option>
         <option value="404">404 only</option>
         <option value="active">Active only</option>
+        <option value="moved">DNS moved / mismatch</option>
       </select>
     </div>
     <div class="col-12 col-md-4 col-lg-6 text-md-end">
       <button class="btn btn-sm btn-outline-secondary" id="domRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Check All</button>
     </div>
   </div>
-  <p class="text-secondary small mt-2 mb-0">
-    <i class="bi bi-info-circle"></i> Lists domains from CyberPanel CLI. HTTP check via curl on the server.
-    Delete uses <code>cyberpanel deleteWebsite</code> / <code>deleteChild</code> (full panel cleanup).
+  <p class="text-secondary small mt-2 mb-0" id="domServerIpHint">
+    <i class="bi bi-info-circle"></i> CyberPanel domains + HTTP check. Cloudflare DNS from Settings.
+    Delete runs <code>cyberpanel deleteWebsite</code> / <code>deleteChild</code>.
   </p>
 </div>
 
 <div class="row g-3 mb-3">
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-3 col-lg-2">
     <div class="sm-card sm-stat py-2 px-3">
       <div class="sm-stat-head small"><i class="bi bi-list-ul"></i> Total</div>
       <div class="sm-stat-value h4 mb-0" id="domTotal">0</div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-3 col-lg-2">
     <div class="sm-card sm-stat py-2 px-3">
       <div class="sm-stat-head small text-success"><i class="bi bi-check-circle"></i> Active</div>
       <div class="sm-stat-value h4 mb-0 text-success" id="domActive">0</div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-3 col-lg-2">
     <div class="sm-card sm-stat py-2 px-3">
       <div class="sm-stat-head small text-warning"><i class="bi bi-question-circle"></i> 404</div>
       <div class="sm-stat-value h4 mb-0 text-warning" id="dom404">0</div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-3 col-lg-2">
     <div class="sm-card sm-stat py-2 px-3">
-      <div class="sm-stat-head small text-danger"><i class="bi bi-x-circle"></i> Down / Error</div>
+      <div class="sm-stat-head small text-info"><i class="bi bi-signpost-split"></i> DNS moved</div>
+      <div class="sm-stat-value h4 mb-0 text-info" id="domMoved">0</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 col-lg-2">
+    <div class="sm-card sm-stat py-2 px-3">
+      <div class="sm-stat-head small text-danger"><i class="bi bi-x-circle"></i> Down</div>
       <div class="sm-stat-value h4 mb-0 text-danger" id="domDown">0</div>
     </div>
   </div>
@@ -66,12 +73,14 @@
           <th>Domain</th>
           <th>Type</th>
           <th>HTTP</th>
-          <th>Status</th>
+          <th>Site</th>
+          <th>Cloudflare DNS</th>
+          <th>Note</th>
           <th class="text-end">Action</th>
         </tr>
       </thead>
       <tbody id="domBody">
-        <tr><td colspan="5" class="text-secondary text-center py-4">Loading…</td></tr>
+        <tr><td colspan="7" class="text-secondary text-center py-4">Loading…</td></tr>
       </tbody>
     </table>
   </div>

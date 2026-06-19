@@ -10,6 +10,8 @@
   <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Two-factor authentication enabled.</div>
 <% } else if (saved === '2fa-disabled') { %>
   <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Two-factor authentication disabled.</div>
+<% } else if (saved === 'cloudflare') { %>
+  <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Cloudflare settings saved.</div>
 <% } else if (saved === 'encrypted') { %>
   <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> SSH credentials encrypted successfully.</div>
 <% } %>
@@ -78,6 +80,45 @@
       </form>
     </div>
   </div>
+</div>
+
+<div class="sm-card mt-3">
+  <div class="sm-card-head">
+    <span><i class="bi bi-cloud"></i> Cloudflare DNS</span>
+    <% if (cloudflare && cloudflare.configured) { %>
+      <span class="sm-pill running"><span class="dot"></span>connected</span>
+    <% } else { %>
+      <span class="sm-pill stopped"><span class="dot"></span>not configured</span>
+    <% } %>
+  </div>
+  <p class="text-secondary small">
+    Used in <strong>Domains</strong> to show A/CNAME records and detect if DNS still points to this server.
+    Create token at Cloudflare → My Profile → API Tokens (Zone → DNS → Read).
+  </p>
+  <form method="POST" action="/settings/cloudflare" autocomplete="off" class="mb-3">
+    <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><%- include('partials/csrf-field') %><% } %>
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <label class="form-label">API Token</label>
+        <input type="password" class="form-control" name="api_token" autocomplete="new-password"
+               placeholder="<%= cloudflare && cloudflare.configured ? 'Leave blank to keep current token' : 'Cloudflare API token' %>" />
+        <% if (cloudflare && cloudflare.configured) { %>
+          <div class="form-text">Current: <code><%= cloudflare.tokenPreview %></code> (encrypted in database)</div>
+        <% } %>
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label">Zone ID <span class="text-secondary">(optional)</span></label>
+        <input type="text" class="form-control" name="zone_id" value="<%= cloudflare ? cloudflare.zoneId : '' %>"
+               placeholder="e.g. 3c70bd1a33e04a49b52e495877090d90" />
+        <div class="form-text">Default zone — auto-detect per domain if empty. Find in Cloudflare → domain → Overview → Zone ID.</div>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i> Save Cloudflare</button>
+      <button class="btn btn-outline-info" type="button" id="btnCfTest"><i class="bi bi-plug me-1"></i> Test connection</button>
+    </div>
+  </form>
+  <div id="cfTestResult" class="alert d-none py-2 mb-0" role="alert"></div>
 </div>
 
 <div class="sm-card mt-3">
@@ -205,6 +246,39 @@
 
 <script>
   window.SM_PAGE = 'settings';
+  (function () {
+    var cfBtn = document.getElementById('btnCfTest');
+    var cfBox = document.getElementById('cfTestResult');
+    if (cfBtn) cfBtn.addEventListener('click', function () {
+      cfBtn.disabled = true;
+      fetch('/api/cloudflare/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-Token': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+        },
+        credentials: 'same-origin',
+        body: '{}',
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        if (cfBox) {
+          cfBox.className = 'alert py-2 mb-0 ' + (res.ok ? 'alert-success' : 'alert-danger');
+          var msg = res.message || res.error || (res.ok ? 'OK' : 'Failed');
+          if (res.zone && res.zone.name) msg += ' Zone: ' + res.zone.name;
+          cfBox.textContent = msg;
+          cfBox.classList.remove('d-none');
+        }
+        cfBtn.disabled = false;
+      }).catch(function () {
+        if (cfBox) {
+          cfBox.className = 'alert alert-danger py-2 mb-0';
+          cfBox.textContent = 'Request failed.';
+          cfBox.classList.remove('d-none');
+        }
+        cfBtn.disabled = false;
+      });
+    });
+  })();
   (function () {
     var btn = document.getElementById('btnEncryptSsh');
     var box = document.getElementById('encryptResult');

@@ -10,6 +10,7 @@ const logService = require('../services/logService');
 const alertService = require('../services/alertService');
 const userRepository = require('../repositories/userRepository');
 const credentialMigrationService = require('../services/credentialMigrationService');
+const cloudflareService = require('../services/cloudflareService');
 
 function dashboard(req, res) {
   res.render('dashboard', {
@@ -105,6 +106,7 @@ function settings(req, res) {
     credentialStatus,
     secureCookie: process.env.SECURE_COOKIE === 'true',
     publicUrl: process.env.PUBLIC_URL || '',
+    cloudflare: cloudflareService.getPublicConfig(),
   });
 }
 

@@ -47,6 +47,9 @@ router.post('/monitoring-all/connect-all', apiController.monitoringAllConnect);
 router.get('/domains', apiController.domainsList);
 router.post('/domains/delete', apiController.domainsDelete);
 
+router.get('/cloudflare/status', apiController.cloudflareStatus);
+router.post('/cloudflare/test', apiController.cloudflareTest);
+
 router.get('/security/credentials-status', securityController.credentialsStatus);
 router.post('/security/encrypt-credentials', securityController.encryptCredentials);
 

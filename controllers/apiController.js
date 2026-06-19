@@ -16,6 +16,7 @@ const remoteSystemService = require('../services/remoteSystemService');
 const serverRepository = require('../repositories/serverRepository');
 const monitoringAllService = require('../services/monitoringAllService');
 const domainMonitorService = require('../services/domainMonitorService');
+const cloudflareService = require('../services/cloudflareService');
 
 async function overview(req, res, next) {
   try {
@@ -357,6 +358,23 @@ async function domainsDelete(req, res, next) {
   }
 }
 
+async function cloudflareStatus(req, res, next) {
+  try {
+    res.json({ ok: true, data: cloudflareService.getPublicConfig() });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function cloudflareTest(req, res, next) {
+  try {
+    const result = await cloudflareService.testConnection();
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   overview,
   services,
@@ -388,4 +406,6 @@ module.exports = {
   monitoringAllServerReboot,
   domainsList,
   domainsDelete,
+  cloudflareStatus,
+  cloudflareTest,
 };

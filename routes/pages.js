@@ -25,6 +25,7 @@ router.get('/settings', pageController.settings);
 router.post('/settings/password', settingsController.changePassword);
 router.post('/settings/port', settingsController.changePort);
 router.post('/settings/thresholds', settingsController.updateThresholds);
+router.post('/settings/cloudflare', settingsController.updateCloudflare);
 router.post('/settings/2fa/setup', settingsController.setupTotp);
 router.post('/settings/2fa/enable', settingsController.enableTotp);
 router.post('/settings/2fa/disable', settingsController.disableTotp);

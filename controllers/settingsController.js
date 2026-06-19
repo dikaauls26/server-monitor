@@ -12,6 +12,7 @@ const settingsRepository = require('../repositories/settingsRepository');
 const alertService = require('../services/alertService');
 const alertRepository = require('../repositories/alertRepository');
 const totpService = require('../services/totpService');
+const cloudflareService = require('../services/cloudflareService');
 const config = require('../config');
 
 const ENV_PATH = path.join(config.rootDir, '.env');
@@ -31,6 +32,7 @@ function renderSettings(res, extra = {}) {
     credentialStatus: { keyConfigured: false, servers: 0, plaintextSecrets: 0, encryptedSecrets: 0, fullyEncrypted: true },
     secureCookie: process.env.SECURE_COOKIE === 'true',
     publicUrl: process.env.PUBLIC_URL || '',
+    cloudflare: cloudflareService.getPublicConfig(),
     ...extra,
   });
 }
@@ -104,6 +106,26 @@ function updateThresholds(req, res) {
   settingsRepository.set('alert_disk_threshold', disk);
 
   return res.redirect('/settings?saved=thresholds');
+}
+
+function updateCloudflare(req, res) {
+  const { api_token, zone_id } = req.body || {};
+  const zoneId = String(zone_id || '').trim();
+
+  if (!api_token && !zoneId && !cloudflareService.getPublicConfig().configured) {
+    return renderSettings(res, { error: 'Enter an API token or zone ID to save.' });
+  }
+
+  try {
+    cloudflareService.saveConfig({
+      apiToken: api_token || undefined,
+      zoneId,
+    });
+  } catch (err) {
+    return renderSettings(res, { error: err.message || 'Failed to save Cloudflare settings.' });
+  }
+
+  return res.redirect('/settings?saved=cloudflare');
 }
 
 async function setupTotp(req, res) {
@@ -183,6 +205,7 @@ module.exports = {
   changePassword,
   changePort,
   updateThresholds,
+  updateCloudflare,
   setupTotp,
   enableTotp,
   disableTotp,

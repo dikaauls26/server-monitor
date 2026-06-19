@@ -1149,31 +1149,61 @@
       var f = filterSel ? filterSel.value : 'all';
       if (f === '404') return sites.filter(function (s) { return s.status === '404'; });
       if (f === 'active') return sites.filter(function (s) { return s.status === 'active'; });
+      if (f === 'moved') {
+        return sites.filter(function (s) {
+          return s.dns && s.dns.note && ['moved', 'mixed', 'cname'].indexOf(s.dns.note.status) >= 0;
+        });
+      }
       return sites;
+    }
+
+    function renderDns(s) {
+      if (!s.dns || !s.dns.configured) {
+        return '<span class="text-secondary small">Configure in Settings</span>';
+      }
+      if (!s.dns.records || !s.dns.records.length) {
+        return '<span class="text-secondary small">—</span>';
+      }
+      return s.dns.records.map(function (r) {
+        return '<div class="small text-nowrap"><code>' + esc(r.type) + '</code> ' +
+          esc(r.name === s.domain ? '@' : r.name.replace(s.domain, '').replace(/\.$/, '') || r.name) +
+          ' → <strong>' + esc(r.content) + '</strong>' +
+          (r.proxied ? ' <i class="bi bi-cloud-fill text-info" title="Proxied"></i>' : '') +
+          '</div>';
+      }).join('');
+    }
+
+    function renderNote(s) {
+      if (!s.dns || !s.dns.note) return '<span class="text-secondary small">—</span>';
+      var n = s.dns.note;
+      var cls = 'text-secondary';
+      if (n.status === 'ok') cls = 'text-success';
+      else if (n.status === 'moved' || n.status === 'mixed') cls = 'text-warning';
+      else if (n.status === 'missing' || n.status === 'error') cls = 'text-danger';
+      return '<span class="small ' + cls + '">' + esc(n.text) + '</span>';
     }
 
     function renderTable(sites) {
       if (!body) return;
       var rows = filteredSites(sites);
       if (!sites.length) {
-        body.innerHTML = '<tr><td colspan="5" class="text-secondary text-center py-4">No domains found in CyberPanel on this server.</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="text-secondary text-center py-4">No domains found in CyberPanel on this server.</td></tr>';
         return;
       }
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="5" class="text-secondary text-center py-4">No domains match this filter.</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="text-secondary text-center py-4">No domains match this filter.</td></tr>';
         return;
       }
       body.innerHTML = rows.map(function (s) {
-        var delBtn = s.status === '404'
-          ? '<button type="button" class="btn btn-sm btn-outline-danger" data-dom-delete="' + esc(s.domain) + '" data-dom-type="' + esc(s.type || 'primary') + '" title="Delete from CyberPanel"><i class="bi bi-trash"></i> Delete</button>'
-          : '<span class="text-secondary small">—</span>';
+        var delBtn = '<button type="button" class="btn btn-sm btn-outline-danger" data-dom-delete="' + esc(s.domain) + '" data-dom-type="' + esc(s.type || 'primary') + '" data-dom-status="' + esc(s.status || '') + '" title="Delete from CyberPanel"><i class="bi bi-trash"></i> Delete</button>';
         var typeLabel = s.type === 'child'
           ? '<span class="badge text-bg-secondary">child</span>' + (s.master ? ' <span class="text-secondary small">of ' + esc(s.master) + '</span>' : '')
           : '<span class="badge text-bg-primary">primary</span>';
         return '<tr><td class="fw-semibold">' + esc(s.domain) + '</td><td>' + typeLabel + '</td><td>' +
           (s.httpCode != null ? esc(String(s.httpCode)) : '—') +
           (s.protocol ? ' <span class="text-secondary small">(' + esc(s.protocol) + ')</span>' : '') +
-          '</td><td>' + statusBadge(s) + '</td><td class="text-end">' + delBtn + '</td></tr>';
+          '</td><td>' + statusBadge(s) + '</td><td>' + renderDns(s) + '</td><td>' + renderNote(s) + '</td>' +
+          '<td class="text-end">' + delBtn + '</td></tr>';
       }).join('');
     }
 
@@ -1182,24 +1212,31 @@
       $('#domTotal').textContent = sum.total || 0;
       $('#domActive').textContent = sum.active || 0;
       $('#dom404').textContent = sum.notFound || 0;
+      $('#domMoved').textContent = sum.moved || 0;
       $('#domDown').textContent = (sum.down || 0) + (sum.other || 0);
       if (data.timestamp) {
         $('#domUpdated').textContent = new Date(data.timestamp).toLocaleTimeString();
       }
+      var hint = $('#domServerIpHint');
+      if (hint && data.serverIp) {
+        hint.innerHTML = '<i class="bi bi-hdd-network"></i> Server IP: <strong>' + esc(data.serverIp) + '</strong> · ' +
+          (data.cloudflare && data.cloudflare.configured ? '<i class="bi bi-cloud-check"></i> Cloudflare connected' : '<i class="bi bi-cloud-slash"></i> Cloudflare not configured — <a href="/settings">Settings</a>') +
+          ' · Delete via CyberPanel CLI';
+      }
     }
 
     function load() {
-      if (body) body.innerHTML = '<tr><td colspan="5" class="text-secondary text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Checking domains…</td></tr>';
+      if (body) body.innerHTML = '<tr><td colspan="7" class="text-secondary text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Checking domains &amp; DNS…</td></tr>';
       var url = '/api/domains?serverId=' + encodeURIComponent(selectedServer);
       return fetchJSON(url).then(function (res) {
         if (!res.ok) {
-          if (body) body.innerHTML = '<tr><td colspan="5" class="text-danger text-center py-4">' + esc(res.error || 'Failed to load domains.') + '</td></tr>';
+          if (body) body.innerHTML = '<tr><td colspan="7" class="text-danger text-center py-4">' + esc(res.error || 'Failed to load domains.') + '</td></tr>';
           markLive(false);
           return;
         }
         var data = res.data || {};
         if (data.available === false) {
-          if (body) body.innerHTML = '<tr><td colspan="5" class="text-warning text-center py-4">' + esc(data.error || 'CyberPanel not available.') + '</td></tr>';
+          if (body) body.innerHTML = '<tr><td colspan="7" class="text-warning text-center py-4">' + esc(data.error || 'CyberPanel not available.') + '</td></tr>';
           renderSummary({ summary: {}, timestamp: Date.now() });
           markLive(false);
           return;
@@ -1209,16 +1246,17 @@
         renderTable(lastSites);
         markLive(true);
       }).catch(function () {
-        if (body) body.innerHTML = '<tr><td colspan="5" class="text-danger text-center py-4">Request failed.</td></tr>';
+        if (body) body.innerHTML = '<tr><td colspan="7" class="text-danger text-center py-4">Request failed.</td></tr>';
         markLive(false);
       });
     }
 
-    function deleteDomain(domain, type, btn) {
-      var msg = 'Delete "' + domain + '" from CyberPanel?\n\n' +
-        'This removes the website, vhost, SSL certificate, and related panel records.\n' +
-        'Use this for dead/404 domains to avoid SSL renewal errors.\n\n' +
-        'This CANNOT be undone.';
+    function deleteDomain(domain, type, siteStatus, btn) {
+      var extra = siteStatus === '404'
+        ? 'This domain returns 404 — safe to remove from CyberPanel.'
+        : 'WARNING: This site is still responding (HTTP ' + siteStatus + '). Delete only if you are sure.';
+      var msg = 'Delete "' + domain + '" from CyberPanel?\n\n' + extra +
+        '\n\nRemoves vhost, SSL cert, and panel records. CANNOT be undone.';
       if (!confirm(msg)) return;
       var original = btn ? btn.innerHTML : '';
       if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
@@ -1252,7 +1290,7 @@
       var del = e.target.closest ? e.target.closest('[data-dom-delete]') : null;
       if (!del) return;
       e.preventDefault();
-      deleteDomain(del.getAttribute('data-dom-delete'), del.getAttribute('data-dom-type'), del);
+      deleteDomain(del.getAttribute('data-dom-delete'), del.getAttribute('data-dom-type'), del.getAttribute('data-dom-status'), del);
     });
 
     loadServers().then(load);
