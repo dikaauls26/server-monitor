@@ -23,12 +23,18 @@
       </select>
     </div>
     <div class="col-12 col-md-4 col-lg-6 text-md-end">
-      <button class="btn btn-sm btn-outline-secondary" id="domRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Check All</button>
+      <div class="d-flex flex-wrap gap-1 justify-content-md-end">
+        <button class="btn btn-sm btn-outline-secondary" id="domSelect404" type="button">Select 404</button>
+        <button class="btn btn-sm btn-outline-secondary" id="domSelectMoved" type="button">Select moved</button>
+        <button class="btn btn-sm btn-outline-danger" id="domDeleteSelected" type="button" disabled>
+          <i class="bi bi-trash"></i> Delete selected (<span id="domSelCount">0</span>)
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" id="domRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Check All</button>
+      </div>
     </div>
   </div>
   <p class="text-secondary small mt-2 mb-0" id="domServerIpHint">
-    <i class="bi bi-info-circle"></i> CyberPanel domains + HTTP check. Cloudflare DNS from Settings.
-    Delete runs <code>cyberpanel deleteWebsite</code> / <code>deleteChild</code>.
+    <i class="bi bi-info-circle"></i> Bulk delete runs in background queue (one domain at a time). Cloudflare DNS from Settings.
   </p>
 </div>
 
@@ -65,11 +71,12 @@
   </div>
 </div>
 
-<div class="sm-card">
+<div class="sm-card mb-3">
   <div class="table-responsive">
     <table class="table sm-table mb-0">
       <thead>
         <tr>
+          <th style="width:2rem"><input type="checkbox" class="form-check-input" id="domSelectAll" title="Select all visible" /></th>
           <th>Domain</th>
           <th>Type</th>
           <th>HTTP</th>
@@ -80,7 +87,30 @@
         </tr>
       </thead>
       <tbody id="domBody">
-        <tr><td colspan="7" class="text-secondary text-center py-4">Loading…</td></tr>
+        <tr><td colspan="8" class="text-secondary text-center py-4">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="sm-card">
+  <div class="sm-card-head">
+    <span><i class="bi bi-list-task"></i> Delete Queue</span>
+    <span class="text-secondary small" id="domQueueBadge">—</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table sm-table mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Domain</th>
+          <th>Server</th>
+          <th>Status</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody id="domQueueBody">
+        <tr><td colspan="5" class="text-secondary text-center py-3 small">No delete jobs yet.</td></tr>
       </tbody>
     </table>
   </div>

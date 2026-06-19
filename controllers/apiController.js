@@ -16,6 +16,7 @@ const remoteSystemService = require('../services/remoteSystemService');
 const serverRepository = require('../repositories/serverRepository');
 const monitoringAllService = require('../services/monitoringAllService');
 const domainMonitorService = require('../services/domainMonitorService');
+const domainDeleteQueueService = require('../services/domainDeleteQueueService');
 const cloudflareService = require('../services/cloudflareService');
 
 async function overview(req, res, next) {
@@ -351,8 +352,27 @@ async function domainsDelete(req, res, next) {
     if (!domain) {
       return res.status(400).json({ ok: false, error: 'Domain is required.' });
     }
-    const result = await domainMonitorService.remove(serverId || 'local', domain, type);
+    const result = domainDeleteQueueService.enqueue(serverId || 'local', [{ domain, type }]);
     res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function domainsDeleteQueue(req, res, next) {
+  try {
+    const { serverId, domains, items } = req.body || {};
+    const list = domains || items || [];
+    const result = domainDeleteQueueService.enqueue(serverId || 'local', list);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function domainsDeleteQueueStatus(req, res, next) {
+  try {
+    res.json({ ok: true, data: domainDeleteQueueService.getQueueStatus() });
   } catch (err) {
     next(err);
   }
@@ -406,6 +426,8 @@ module.exports = {
   monitoringAllServerReboot,
   domainsList,
   domainsDelete,
+  domainsDeleteQueue,
+  domainsDeleteQueueStatus,
   cloudflareStatus,
   cloudflareTest,
 };

@@ -66,6 +66,21 @@ CREATE TABLE IF NOT EXISTS remote_servers (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS domain_delete_jobs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  server_id TEXT NOT NULL DEFAULT 'local',
+  domain TEXT NOT NULL,
+  domain_type TEXT NOT NULL DEFAULT 'primary',
+  status TEXT NOT NULL DEFAULT 'queued',
+  message TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at TEXT,
+  finished_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_domain_delete_jobs_status ON domain_delete_jobs (status);
 `;
 
 function ensureColumn(db, table, column, definition) {

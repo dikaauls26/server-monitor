@@ -29,6 +29,7 @@ const { injectCsrf, csrfProtect } = require('./middleware/csrf');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const alertService = require('./services/alertService');
 const antivirusService = require('./services/antivirusService');
+const domainDeleteQueueService = require('./services/domainDeleteQueueService');
 const sshService = require('./services/sshService');
 
 const authRoutes = require('./routes/auth');
@@ -146,6 +147,7 @@ app.use(errorHandler);
 const server = app.listen(config.port, config.host, () => {
   alertService.start();
   antivirusService.resumeWorker();
+  domainDeleteQueueService.resumeWorker();
   sshService.autoConnectAll().catch((err) => {
     console.warn('[boot] Auto-connect SSH:', err.message);
   });

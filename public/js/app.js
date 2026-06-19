@@ -1109,14 +1109,34 @@
     var serverSel = $('#domServerSelect');
     var filterSel = $('#domFilter');
     var refreshBtn = $('#domRefresh');
+    var selectAllCb = $('#domSelectAll');
+    var deleteSelectedBtn = $('#domDeleteSelected');
+    var selCountEl = $('#domSelCount');
+    var queueBody = $('#domQueueBody');
+    var queueBadge = $('#domQueueBadge');
     var selectedServer = localStorage.getItem('smSelectedServer') || 'local';
     var lastSites = [];
+    var selected = new Set();
+    var queuePoller = null;
+    var lastQueueActive = false;
 
     function showResult(ok, msg) {
       if (!resultEl) return;
       resultEl.className = 'alert py-2 mb-3 ' + (ok ? 'alert-success' : 'alert-danger');
       resultEl.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(msg);
       resultEl.classList.remove('d-none');
+    }
+
+    function updateSelUi() {
+      if (selCountEl) selCountEl.textContent = String(selected.size);
+      if (deleteSelectedBtn) deleteSelectedBtn.disabled = selected.size === 0;
+    }
+
+    function queueStatusPill(st) {
+      if (st === 'done') return '<span class="sm-pill running"><span class="dot"></span>done</span>';
+      if (st === 'running') return '<span class="sm-pill idle"><span class="dot"></span>running</span>';
+      if (st === 'failed') return '<span class="sm-pill stopped"><span class="dot"></span>failed</span>';
+      return '<span class="sm-pill not-installed"><span class="dot"></span>queued</span>';
     }
 
     function statusBadge(s) {
@@ -1187,24 +1207,32 @@
       if (!body) return;
       var rows = filteredSites(sites);
       if (!sites.length) {
-        body.innerHTML = '<tr><td colspan="7" class="text-secondary text-center py-4">No domains found in CyberPanel on this server.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="text-secondary text-center py-4">No domains found in CyberPanel on this server.</td></tr>';
+        updateSelUi();
         return;
       }
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="7" class="text-secondary text-center py-4">No domains match this filter.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="text-secondary text-center py-4">No domains match this filter.</td></tr>';
+        updateSelUi();
         return;
       }
       body.innerHTML = rows.map(function (s) {
-        var delBtn = '<button type="button" class="btn btn-sm btn-outline-danger" data-dom-delete="' + esc(s.domain) + '" data-dom-type="' + esc(s.type || 'primary') + '" data-dom-status="' + esc(s.status || '') + '" title="Delete from CyberPanel"><i class="bi bi-trash"></i> Delete</button>';
+        var checked = selected.has(s.domain) ? ' checked' : '';
+        var delBtn = '<button type="button" class="btn btn-sm btn-outline-danger" data-dom-delete="' + esc(s.domain) + '" data-dom-type="' + esc(s.type || 'primary') + '" data-dom-status="' + esc(s.status || '') + '" title="Queue delete"><i class="bi bi-trash"></i></button>';
         var typeLabel = s.type === 'child'
           ? '<span class="badge text-bg-secondary">child</span>' + (s.master ? ' <span class="text-secondary small">of ' + esc(s.master) + '</span>' : '')
           : '<span class="badge text-bg-primary">primary</span>';
-        return '<tr><td class="fw-semibold">' + esc(s.domain) + '</td><td>' + typeLabel + '</td><td>' +
+        return '<tr><td><input type="checkbox" class="form-check-input dom-row-cb" data-dom-check="' + esc(s.domain) + '"' + checked + ' /></td>' +
+          '<td class="fw-semibold">' + esc(s.domain) + '</td><td>' + typeLabel + '</td><td>' +
           (s.httpCode != null ? esc(String(s.httpCode)) : '—') +
           (s.protocol ? ' <span class="text-secondary small">(' + esc(s.protocol) + ')</span>' : '') +
           '</td><td>' + statusBadge(s) + '</td><td>' + renderDns(s) + '</td><td>' + renderNote(s) + '</td>' +
           '<td class="text-end">' + delBtn + '</td></tr>';
       }).join('');
+      updateSelUi();
+      if (selectAllCb) {
+        selectAllCb.checked = rows.length > 0 && rows.every(function (s) { return selected.has(s.domain); });
+      }
     }
 
     function renderSummary(data) {
@@ -1221,81 +1249,161 @@
       if (hint && data.serverIp) {
         hint.innerHTML = '<i class="bi bi-hdd-network"></i> Server IP: <strong>' + esc(data.serverIp) + '</strong> · ' +
           (data.cloudflare && data.cloudflare.configured ? '<i class="bi bi-cloud-check"></i> Cloudflare connected' : '<i class="bi bi-cloud-slash"></i> Cloudflare not configured — <a href="/settings">Settings</a>') +
-          ' · Delete via CyberPanel CLI';
+          ' · Bulk delete = background queue (1 domain at a time)';
       }
     }
 
+    function renderQueue(d) {
+      if (queueBadge) {
+        queueBadge.textContent = (d.queued || 0) + ' queued · ' + (d.running || 0) + ' running';
+      }
+      if (!queueBody) return;
+      if (!d.jobs || !d.jobs.length) {
+        queueBody.innerHTML = '<tr><td colspan="5" class="text-secondary text-center py-3 small">No delete jobs yet.</td></tr>';
+        return;
+      }
+      queueBody.innerHTML = d.jobs.map(function (j) {
+        var result = j.status === 'failed' ? esc(j.error || j.message || 'Failed') : esc(j.message || '—');
+        return '<tr><td class="small text-secondary">' + j.id + '</td><td>' + esc(j.domain) + '</td><td class="small">' + esc(j.serverId) + '</td><td>' +
+          queueStatusPill(j.status) + '</td><td class="small text-break">' + result + '</td></tr>';
+      }).join('');
+    }
+
+    function loadQueue() {
+      return fetchJSON('/api/domains/delete-queue').then(function (res) {
+        if (!res.ok || !res.data) return;
+        renderQueue(res.data);
+        var active = (res.data.queued || 0) + (res.data.running || 0) > 0;
+        if (lastQueueActive && !active) load();
+        lastQueueActive = active;
+      }).catch(function () {});
+    }
+
+    function startQueuePoll() {
+      if (queuePoller) return;
+      queuePoller = setInterval(loadQueue, 3000);
+    }
+
     function load() {
-      if (body) body.innerHTML = '<tr><td colspan="7" class="text-secondary text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Checking domains &amp; DNS…</td></tr>';
+      if (body) body.innerHTML = '<tr><td colspan="8" class="text-secondary text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Checking domains &amp; DNS…</td></tr>';
       var url = '/api/domains?serverId=' + encodeURIComponent(selectedServer);
       return fetchJSON(url).then(function (res) {
         if (!res.ok) {
-          if (body) body.innerHTML = '<tr><td colspan="7" class="text-danger text-center py-4">' + esc(res.error || 'Failed to load domains.') + '</td></tr>';
+          if (body) body.innerHTML = '<tr><td colspan="8" class="text-danger text-center py-4">' + esc(res.error || 'Failed to load domains.') + '</td></tr>';
           markLive(false);
           return;
         }
         var data = res.data || {};
         if (data.available === false) {
-          if (body) body.innerHTML = '<tr><td colspan="7" class="text-warning text-center py-4">' + esc(data.error || 'CyberPanel not available.') + '</td></tr>';
+          if (body) body.innerHTML = '<tr><td colspan="8" class="text-warning text-center py-4">' + esc(data.error || 'CyberPanel not available.') + '</td></tr>';
           renderSummary({ summary: {}, timestamp: Date.now() });
           markLive(false);
           return;
         }
         lastSites = data.sites || [];
+        selected.forEach(function (d) {
+          if (!lastSites.some(function (s) { return s.domain === d; })) selected.delete(d);
+        });
         renderSummary(data);
         renderTable(lastSites);
         markLive(true);
       }).catch(function () {
-        if (body) body.innerHTML = '<tr><td colspan="7" class="text-danger text-center py-4">Request failed.</td></tr>';
+        if (body) body.innerHTML = '<tr><td colspan="8" class="text-danger text-center py-4">Request failed.</td></tr>';
         markLive(false);
       });
     }
 
-    function deleteDomain(domain, type, siteStatus, btn) {
-      var extra = siteStatus === '404'
-        ? 'This domain returns 404 — safe to remove from CyberPanel.'
-        : 'WARNING: This site is still responding (HTTP ' + siteStatus + '). Delete only if you are sure.';
-      var msg = 'Delete "' + domain + '" from CyberPanel?\n\n' + extra +
-        '\n\nRemoves vhost, SSL cert, and panel records. CANNOT be undone.';
-      if (!confirm(msg)) return;
-      var original = btn ? btn.innerHTML : '';
-      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+    function enqueueDelete(items, confirmMsg) {
+      if (!items.length) return;
+      if (!confirm(confirmMsg)) return;
       if (resultEl) resultEl.classList.add('d-none');
-      fetchJSON('/api/domains/delete', {
+      fetchJSON('/api/domains/delete-queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serverId: selectedServer, domain: domain, type: type })
+        body: JSON.stringify({ serverId: selectedServer, items: items })
       }).then(function (res) {
         var msg = res.message || res.error || 'Done.';
-        if (res.warnings && res.warnings.length) msg += ' ' + res.warnings.join(' ');
+        if (res.skipped && res.skipped.length) {
+          msg += ' Skipped: ' + res.skipped.map(function (x) { return x.domain; }).join(', ');
+        }
         showResult(res.ok, msg);
-        if (res.ok) load();
-      }).catch(function () {
-        showResult(false, 'Delete request failed.');
-      }).then(function () {
-        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        if (res.ok) {
+          items.forEach(function (it) { selected.delete(it.domain); });
+          updateSelUi();
+          loadQueue();
+          startQueuePoll();
+        }
+      }).catch(function () { showResult(false, 'Queue request failed.'); });
+    }
+
+    function deleteOne(domain, type, siteStatus, btn) {
+      var extra = siteStatus === '404' ? 'Domain returns 404.' : 'Site status: ' + siteStatus + '.';
+      enqueueDelete([{ domain: domain, type: type }],
+        'Queue delete "' + domain + '"?\n\n' + extra + '\n\nRuns in background (one at a time).');
+      if (btn) btn.disabled = true;
+      setTimeout(function () { if (btn) btn.disabled = false; }, 1500);
+    }
+
+    function deleteSelected() {
+      var items = [];
+      lastSites.forEach(function (s) {
+        if (selected.has(s.domain)) items.push({ domain: s.domain, type: s.type || 'primary' });
       });
+      enqueueDelete(items,
+        'Queue delete for ' + items.length + ' domain(s)?\n\nProcessed one at a time.\nCANNOT be undone.');
+    }
+
+    function selectByFilter(fn) {
+      filteredSites(lastSites).forEach(function (s) {
+        if (fn(s)) selected.add(s.domain);
+      });
+      renderTable(lastSites);
     }
 
     if (serverSel) {
       serverSel.addEventListener('change', function () {
         selectedServer = serverSel.value;
         localStorage.setItem('smSelectedServer', selectedServer);
+        selected.clear();
         load();
       });
     }
     if (filterSel) filterSel.addEventListener('change', function () { renderTable(lastSites); });
     if (refreshBtn) refreshBtn.addEventListener('click', load);
+    if (deleteSelectedBtn) deleteSelectedBtn.addEventListener('click', deleteSelected);
+    if ($('#domSelect404')) $('#domSelect404').addEventListener('click', function () {
+      selectByFilter(function (s) { return s.status === '404'; });
+    });
+    if ($('#domSelectMoved')) $('#domSelectMoved').addEventListener('click', function () {
+      selectByFilter(function (s) {
+        return s.dns && s.dns.note && ['moved', 'mixed', 'cname'].indexOf(s.dns.note.status) >= 0;
+      });
+    });
+    if (selectAllCb) selectAllCb.addEventListener('change', function () {
+      var rows = filteredSites(lastSites);
+      if (selectAllCb.checked) rows.forEach(function (s) { selected.add(s.domain); });
+      else rows.forEach(function (s) { selected.delete(s.domain); });
+      renderTable(lastSites);
+    });
+
+    if (body) body.addEventListener('change', function (e) {
+      if (window.SM_PAGE !== 'domains') return;
+      var cb = e.target.closest ? e.target.closest('.dom-row-cb') : null;
+      if (!cb) return;
+      var d = cb.getAttribute('data-dom-check');
+      if (cb.checked) selected.add(d); else selected.delete(d);
+      updateSelUi();
+    });
 
     document.addEventListener('click', function (e) {
       if (window.SM_PAGE !== 'domains') return;
       var del = e.target.closest ? e.target.closest('[data-dom-delete]') : null;
       if (!del) return;
       e.preventDefault();
-      deleteDomain(del.getAttribute('data-dom-delete'), del.getAttribute('data-dom-type'), del.getAttribute('data-dom-status'), del);
+      deleteOne(del.getAttribute('data-dom-delete'), del.getAttribute('data-dom-type'), del.getAttribute('data-dom-status'), del);
     });
 
-    loadServers().then(load);
+    loadServers().then(function () { load(); loadQueue(); startQueuePoll(); });
   }
 
   // ---------- Boot ----------
