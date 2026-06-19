@@ -1,12 +1,13 @@
 'use strict';
 
-/** Collapse a multi-line shell script into one line for SSH exec. */
-function shellOneLine(script) {
-  return script
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join('; ');
+/**
+ * Wrap a multi-line bash script for execution over SSH.
+ * Base64 keeps if/else blocks valid (semicolon-join breaks `then;` / `else;`).
+ */
+function remoteBash(script) {
+  const body = script.trim() + '\n';
+  const encoded = Buffer.from(body, 'utf8').toString('base64');
+  return `echo '${encoded}' | base64 -d | bash`;
 }
 
-module.exports = { shellOneLine };
+module.exports = { remoteBash };

@@ -6,9 +6,9 @@
  */
 
 const sshService = require('./sshService');
-const { shellOneLine } = require('./shellScript');
+const { remoteBash } = require('./shellScript');
 
-const METRICS_SCRIPT = shellOneLine(`
+const METRICS_SCRIPT = remoteBash(`
 hostname=$(hostname 2>/dev/null || echo unknown)
 uptime_sec=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)
 read l1 l5 l15 _ < /proc/loadavg 2>/dev/null || l1=0; l5=0; l15=0

@@ -740,7 +740,7 @@
     }
 
     function connPill(srv) {
-      if (srv.connected && srv.ok !== false) {
+      if (srv.connected) {
         return '<span class="sm-pill running"><span class="dot"></span>connected</span>';
       }
       return '<span class="sm-pill stopped"><span class="dot"></span>disconnected</span>';

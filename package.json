@@ -1,6 +1,6 @@
 {
   "name": "server-monitor",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Production-ready server monitoring dashboard built with Node.js, Express, Bootstrap 5 and SQLite.",
   "main": "server.js",
   "scripts": {

@@ -64,7 +64,7 @@ async function getAll() {
   return {
     timestamp: Date.now(),
     servers,
-    connected: servers.filter((s) => s.connected && s.ok !== false).length,
+    connected: servers.filter((s) => s.connected).length,
     total: servers.length,
   };
 }

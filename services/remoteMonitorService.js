@@ -7,7 +7,7 @@
 
 const sshService = require('./sshService');
 const serverRepository = require('../repositories/serverRepository');
-const { shellOneLine } = require('./shellScript');
+const { remoteBash } = require('./shellScript');
 
 const SERVICE_KEYS = [
   { key: 'mysql', label: 'MySQL / MariaDB', units: 'mysql mariadb mysqld' },
@@ -18,7 +18,7 @@ const SERVICE_KEYS = [
   { key: 'lscpd', label: 'LSCPD (CyberPanel)', units: 'lscpd' },
 ];
 
-const MONITOR_SCRIPT = shellOneLine(`
+const MONITOR_SCRIPT = remoteBash(`
 hostname=$(hostname 2>/dev/null || echo unknown)
 uptime_sec=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)
 read l1 l5 l15 _ < /proc/loadavg 2>/dev/null || l1=0; l5=0; l15=0
