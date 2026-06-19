@@ -14,6 +14,7 @@ router.get('/dashboard', pageController.dashboard);
 router.get('/monitoring', pageController.monitoring);
 router.get('/monitoring-all', pageController.monitoringAll);
 router.get('/mail', pageController.mail);
+router.get('/domains', pageController.domains);
 router.get('/antivirus', pageController.antivirus);
 router.get('/servers', pageController.servers);
 router.get('/logs', pageController.logs);

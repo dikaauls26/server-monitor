@@ -1,0 +1,81 @@
+<%- include('partials/layout-open') %>
+
+<div class="sm-card mb-3">
+  <div class="sm-card-head">
+    <span><i class="bi bi-globe"></i> CyberPanel Domains</span>
+    <span class="text-secondary small" id="domUpdated">—</span>
+  </div>
+  <div id="domActionResult" class="alert d-none py-2 mb-3" role="alert"></div>
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-4 col-lg-3">
+      <label class="form-label small mb-1">Server</label>
+      <select class="form-select form-select-sm" id="domServerSelect">
+        <option value="local">Local Server (this machine)</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-4 col-lg-3">
+      <label class="form-label small mb-1">Filter</label>
+      <select class="form-select form-select-sm" id="domFilter">
+        <option value="all">All domains</option>
+        <option value="404">404 only</option>
+        <option value="active">Active only</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-4 col-lg-6 text-md-end">
+      <button class="btn btn-sm btn-outline-secondary" id="domRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Check All</button>
+    </div>
+  </div>
+  <p class="text-secondary small mt-2 mb-0">
+    <i class="bi bi-info-circle"></i> Lists domains from CyberPanel CLI. HTTP check via curl on the server.
+    Delete uses <code>cyberpanel deleteWebsite</code> / <code>deleteChild</code> (full panel cleanup).
+  </p>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="sm-card sm-stat py-2 px-3">
+      <div class="sm-stat-head small"><i class="bi bi-list-ul"></i> Total</div>
+      <div class="sm-stat-value h4 mb-0" id="domTotal">0</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="sm-card sm-stat py-2 px-3">
+      <div class="sm-stat-head small text-success"><i class="bi bi-check-circle"></i> Active</div>
+      <div class="sm-stat-value h4 mb-0 text-success" id="domActive">0</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="sm-card sm-stat py-2 px-3">
+      <div class="sm-stat-head small text-warning"><i class="bi bi-question-circle"></i> 404</div>
+      <div class="sm-stat-value h4 mb-0 text-warning" id="dom404">0</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="sm-card sm-stat py-2 px-3">
+      <div class="sm-stat-head small text-danger"><i class="bi bi-x-circle"></i> Down / Error</div>
+      <div class="sm-stat-value h4 mb-0 text-danger" id="domDown">0</div>
+    </div>
+  </div>
+</div>
+
+<div class="sm-card">
+  <div class="table-responsive">
+    <table class="table sm-table mb-0">
+      <thead>
+        <tr>
+          <th>Domain</th>
+          <th>Type</th>
+          <th>HTTP</th>
+          <th>Status</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody id="domBody">
+        <tr><td colspan="5" class="text-secondary text-center py-4">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>window.SM_PAGE = 'domains';</script>
+<%- include('partials/layout-close') %>

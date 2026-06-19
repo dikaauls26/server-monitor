@@ -1,6 +1,7 @@
 'use strict';
 
 const userRepository = require('../repositories/userRepository');
+const totpService = require('../services/totpService');
 const { rotateCsrfToken } = require('../middleware/csrf');
 
 const PENDING_2FA_MS = 5 * 60 * 1000;

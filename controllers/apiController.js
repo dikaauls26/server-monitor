@@ -15,6 +15,7 @@ const sshService = require('../services/sshService');
 const remoteSystemService = require('../services/remoteSystemService');
 const serverRepository = require('../repositories/serverRepository');
 const monitoringAllService = require('../services/monitoringAllService');
+const domainMonitorService = require('../services/domainMonitorService');
 
 async function overview(req, res, next) {
   try {
@@ -333,6 +334,29 @@ async function monitoringAllServerReboot(req, res, next) {
   }
 }
 
+async function domainsList(req, res, next) {
+  try {
+    const checkHttp = req.query.check !== '0';
+    const result = await domainMonitorService.list(req.query.serverId || 'local', { checkHttp });
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function domainsDelete(req, res, next) {
+  try {
+    const { serverId, domain, type } = req.body || {};
+    if (!domain) {
+      return res.status(400).json({ ok: false, error: 'Domain is required.' });
+    }
+    const result = await domainMonitorService.remove(serverId || 'local', domain, type);
+    res.status(result.ok ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   overview,
   services,
@@ -362,4 +386,6 @@ module.exports = {
   monitoringAllServerMailClearDeferred,
   monitoringAllServerMailClearPending,
   monitoringAllServerReboot,
+  domainsList,
+  domainsDelete,
 };

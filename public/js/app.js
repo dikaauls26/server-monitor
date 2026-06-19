@@ -1100,6 +1100,164 @@
     poller(load, 10000);
   }
 
+  // ===================================================================
+  // DOMAINS (CyberPanel)
+  // ===================================================================
+  function initDomains() {
+    var body = $('#domBody');
+    var resultEl = $('#domActionResult');
+    var serverSel = $('#domServerSelect');
+    var filterSel = $('#domFilter');
+    var refreshBtn = $('#domRefresh');
+    var selectedServer = localStorage.getItem('smSelectedServer') || 'local';
+    var lastSites = [];
+
+    function showResult(ok, msg) {
+      if (!resultEl) return;
+      resultEl.className = 'alert py-2 mb-3 ' + (ok ? 'alert-success' : 'alert-danger');
+      resultEl.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(msg);
+      resultEl.classList.remove('d-none');
+    }
+
+    function statusBadge(s) {
+      if (s.status === 'active') return '<span class="sm-pill running"><span class="dot"></span>active</span>';
+      if (s.status === '404') return '<span class="sm-pill idle"><span class="dot"></span>404</span>';
+      if (s.status === 'down') return '<span class="sm-pill stopped"><span class="dot"></span>down</span>';
+      if (s.status === 'unknown') return '<span class="sm-pill not-installed"><span class="dot"></span>unchecked</span>';
+      return '<span class="sm-pill not-installed"><span class="dot"></span>' + esc(s.status || 'other') + '</span>';
+    }
+
+    function loadServers() {
+      return fetchJSON('/api/servers').then(function (res) {
+        if (!res.ok || !serverSel) return;
+        var current = serverSel.value || selectedServer;
+        serverSel.innerHTML = '<option value="local">Local Server (this machine)</option>';
+        (res.data || []).forEach(function (s) {
+          var opt = document.createElement('option');
+          opt.value = String(s.id);
+          opt.textContent = s.name + ' (' + s.host + ')';
+          serverSel.appendChild(opt);
+        });
+        if (current && serverSel.querySelector('option[value="' + current + '"]')) {
+          serverSel.value = current;
+        }
+        selectedServer = serverSel.value;
+      }).catch(function () {});
+    }
+
+    function filteredSites(sites) {
+      var f = filterSel ? filterSel.value : 'all';
+      if (f === '404') return sites.filter(function (s) { return s.status === '404'; });
+      if (f === 'active') return sites.filter(function (s) { return s.status === 'active'; });
+      return sites;
+    }
+
+    function renderTable(sites) {
+      if (!body) return;
+      var rows = filteredSites(sites);
+      if (!sites.length) {
+        body.innerHTML = '<tr><td colspan="5" class="text-secondary text-center py-4">No domains found in CyberPanel on this server.</td></tr>';
+        return;
+      }
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="5" class="text-secondary text-center py-4">No domains match this filter.</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map(function (s) {
+        var delBtn = s.status === '404'
+          ? '<button type="button" class="btn btn-sm btn-outline-danger" data-dom-delete="' + esc(s.domain) + '" data-dom-type="' + esc(s.type || 'primary') + '" title="Delete from CyberPanel"><i class="bi bi-trash"></i> Delete</button>'
+          : '<span class="text-secondary small">—</span>';
+        var typeLabel = s.type === 'child'
+          ? '<span class="badge text-bg-secondary">child</span>' + (s.master ? ' <span class="text-secondary small">of ' + esc(s.master) + '</span>' : '')
+          : '<span class="badge text-bg-primary">primary</span>';
+        return '<tr><td class="fw-semibold">' + esc(s.domain) + '</td><td>' + typeLabel + '</td><td>' +
+          (s.httpCode != null ? esc(String(s.httpCode)) : '—') +
+          (s.protocol ? ' <span class="text-secondary small">(' + esc(s.protocol) + ')</span>' : '') +
+          '</td><td>' + statusBadge(s) + '</td><td class="text-end">' + delBtn + '</td></tr>';
+      }).join('');
+    }
+
+    function renderSummary(data) {
+      var sum = data.summary || {};
+      $('#domTotal').textContent = sum.total || 0;
+      $('#domActive').textContent = sum.active || 0;
+      $('#dom404').textContent = sum.notFound || 0;
+      $('#domDown').textContent = (sum.down || 0) + (sum.other || 0);
+      if (data.timestamp) {
+        $('#domUpdated').textContent = new Date(data.timestamp).toLocaleTimeString();
+      }
+    }
+
+    function load() {
+      if (body) body.innerHTML = '<tr><td colspan="5" class="text-secondary text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Checking domains…</td></tr>';
+      var url = '/api/domains?serverId=' + encodeURIComponent(selectedServer);
+      return fetchJSON(url).then(function (res) {
+        if (!res.ok) {
+          if (body) body.innerHTML = '<tr><td colspan="5" class="text-danger text-center py-4">' + esc(res.error || 'Failed to load domains.') + '</td></tr>';
+          markLive(false);
+          return;
+        }
+        var data = res.data || {};
+        if (data.available === false) {
+          if (body) body.innerHTML = '<tr><td colspan="5" class="text-warning text-center py-4">' + esc(data.error || 'CyberPanel not available.') + '</td></tr>';
+          renderSummary({ summary: {}, timestamp: Date.now() });
+          markLive(false);
+          return;
+        }
+        lastSites = data.sites || [];
+        renderSummary(data);
+        renderTable(lastSites);
+        markLive(true);
+      }).catch(function () {
+        if (body) body.innerHTML = '<tr><td colspan="5" class="text-danger text-center py-4">Request failed.</td></tr>';
+        markLive(false);
+      });
+    }
+
+    function deleteDomain(domain, type, btn) {
+      var msg = 'Delete "' + domain + '" from CyberPanel?\n\n' +
+        'This removes the website, vhost, SSL certificate, and related panel records.\n' +
+        'Use this for dead/404 domains to avoid SSL renewal errors.\n\n' +
+        'This CANNOT be undone.';
+      if (!confirm(msg)) return;
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+      if (resultEl) resultEl.classList.add('d-none');
+      fetchJSON('/api/domains/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serverId: selectedServer, domain: domain, type: type })
+      }).then(function (res) {
+        showResult(res.ok, res.message || res.error || 'Done.');
+        if (res.ok) load();
+      }).catch(function () {
+        showResult(false, 'Delete request failed.');
+      }).then(function () {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+      });
+    }
+
+    if (serverSel) {
+      serverSel.addEventListener('change', function () {
+        selectedServer = serverSel.value;
+        localStorage.setItem('smSelectedServer', selectedServer);
+        load();
+      });
+    }
+    if (filterSel) filterSel.addEventListener('change', function () { renderTable(lastSites); });
+    if (refreshBtn) refreshBtn.addEventListener('click', load);
+
+    document.addEventListener('click', function (e) {
+      if (window.SM_PAGE !== 'domains') return;
+      var del = e.target.closest ? e.target.closest('[data-dom-delete]') : null;
+      if (!del) return;
+      e.preventDefault();
+      deleteDomain(del.getAttribute('data-dom-delete'), del.getAttribute('data-dom-type'), del);
+    });
+
+    loadServers().then(load);
+  }
+
   // ---------- Boot ----------
   document.addEventListener('DOMContentLoaded', function () {
     switch (window.SM_PAGE) {
@@ -1107,6 +1265,7 @@
       case 'monitoring': initMonitoring(); break;
       case 'monitoring-all': initMonitoringAll(); break;
       case 'mail': initMail(); break;
+      case 'domains': initDomains(); break;
       case 'antivirus': initAntivirus(); break;
       case 'servers': initServers(); break;
       case 'logs': initLogs(); break;

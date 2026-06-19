@@ -44,6 +44,9 @@ router.post('/monitoring-all/server/:serverId/reboot', apiController.monitoringA
 router.post('/monitoring-all/control', apiController.monitoringAllControl);
 router.post('/monitoring-all/connect-all', apiController.monitoringAllConnect);
 
+router.get('/domains', apiController.domainsList);
+router.post('/domains/delete', apiController.domainsDelete);
+
 router.get('/security/credentials-status', securityController.credentialsStatus);
 router.post('/security/encrypt-credentials', securityController.encryptCredentials);
 

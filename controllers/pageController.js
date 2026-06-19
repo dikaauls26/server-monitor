@@ -43,6 +43,14 @@ function mail(req, res) {
   });
 }
 
+function domains(req, res) {
+  res.render('domains', {
+    title: 'Domains',
+    activePage: 'domains',
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
 function antivirus(req, res) {
   res.render('antivirus', {
     title: 'Antivirus',
@@ -100,4 +108,4 @@ function settings(req, res) {
   });
 }
 
-module.exports = { dashboard, monitoring, monitoringAll, mail, antivirus, servers, logs, alerts, settings };
+module.exports = { dashboard, monitoring, monitoringAll, mail, domains, antivirus, servers, logs, alerts, settings };
