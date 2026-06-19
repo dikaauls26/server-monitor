@@ -1109,6 +1109,7 @@
     var serverSel = $('#domServerSelect');
     var filterSel = $('#domFilter');
     var refreshBtn = $('#domRefresh');
+    var fetchBtn = $('#domFetch');
     var selectAllCb = $('#domSelectAll');
     var deleteSelectedBtn = $('#domDeleteSelected');
     var selCountEl = $('#domSelCount');
@@ -1119,6 +1120,35 @@
     var selected = new Set();
     var queuePoller = null;
     var lastQueueActive = false;
+    var hasFetched = false;
+
+    function setActionButtons(enabled) {
+      if (filterSel) filterSel.disabled = !enabled;
+      var ids = ['domSelect404', 'domSelectMoved', 'domRefresh'];
+      ids.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+      });
+    }
+
+    function showIdleState() {
+      hasFetched = false;
+      lastSites = [];
+      selected.clear();
+      updateSelUi();
+      setActionButtons(false);
+      if (selectAllCb) selectAllCb.checked = false;
+      if (body) {
+        body.innerHTML = '<tr><td colspan="8" class="text-secondary text-center py-4">Pilih server lalu klik <strong>Fetch Domains</strong>.</td></tr>';
+      }
+      $('#domTotal').textContent = '0';
+      $('#domActive').textContent = '0';
+      $('#dom404').textContent = '0';
+      $('#domMoved').textContent = '0';
+      $('#domDown').textContent = '0';
+      $('#domUpdated').textContent = 'belum di-fetch';
+      markLive(false);
+    }
 
     function showResult(ok, msg) {
       if (!resultEl) return;
@@ -1276,7 +1306,7 @@
         if (!res.ok || !res.data) return;
         renderQueue(res.data);
         var active = (res.data.queued || 0) + (res.data.running || 0) > 0;
-        if (lastQueueActive && !active) load();
+        if (hasFetched && lastQueueActive && !active) load();
         lastQueueActive = active;
       }).catch(function () {});
     }
@@ -1308,6 +1338,8 @@
         });
         renderSummary(data);
         renderTable(lastSites);
+        hasFetched = true;
+        setActionButtons(true);
         markLive(true);
       }).catch(function () {
         if (body) body.innerHTML = '<tr><td colspan="8" class="text-danger text-center py-4">Request failed.</td></tr>';
@@ -1366,12 +1398,12 @@
       serverSel.addEventListener('change', function () {
         selectedServer = serverSel.value;
         localStorage.setItem('smSelectedServer', selectedServer);
-        selected.clear();
-        load();
+        showIdleState();
       });
     }
-    if (filterSel) filterSel.addEventListener('change', function () { renderTable(lastSites); });
-    if (refreshBtn) refreshBtn.addEventListener('click', load);
+    if (filterSel) filterSel.addEventListener('change', function () { if (hasFetched) renderTable(lastSites); });
+    if (fetchBtn) fetchBtn.addEventListener('click', load);
+    if (refreshBtn) refreshBtn.addEventListener('click', function () { if (hasFetched) load(); });
     if (deleteSelectedBtn) deleteSelectedBtn.addEventListener('click', deleteSelected);
     if ($('#domSelect404')) $('#domSelect404').addEventListener('click', function () {
       selectByFilter(function (s) { return s.status === '404'; });
@@ -1405,7 +1437,7 @@
       deleteOne(del.getAttribute('data-dom-delete'), del.getAttribute('data-dom-type'), del.getAttribute('data-dom-status'), del);
     });
 
-    loadServers().then(function () { load(); loadQueue(); startQueuePoll(); });
+    loadServers().then(function () { showIdleState(); loadQueue(); startQueuePoll(); });
   }
 
   // ---------- Boot ----------
