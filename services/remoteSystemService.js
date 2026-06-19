@@ -6,8 +6,9 @@
  */
 
 const sshService = require('./sshService');
+const { shellOneLine } = require('./shellScript');
 
-const METRICS_SCRIPT = `
+const METRICS_SCRIPT = shellOneLine(`
 hostname=$(hostname 2>/dev/null || echo unknown)
 uptime_sec=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)
 read l1 l5 l15 _ < /proc/loadavg 2>/dev/null || l1=0; l5=0; l15=0
@@ -36,9 +37,8 @@ distro=$(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"')
 kernel=$(uname -r 2>/dev/null)
 arch=$(uname -m 2>/dev/null)
 brand=$(grep -m1 "model name" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | sed 's/^[ \\t]*//')
-printf '{"hostname":"%s","uptime":%s,"load1":%s,"load5":%s,"load15":%s,"cores":%s,"cpu":%s,"memTotal":%s,"memUsed":%s,"diskSize":%s,"diskUsed":%s,"rxBytes":%s,"txBytes":%s,"distro":"%s","kernel":"%s","arch":"%s","brand":"%s"}' \\
-  "$hostname" "$uptime_sec" "$l1" "$l5" "$l15" "$cores" "$cpu_pct" "$mem_total" "$((mem_total-mem_avail))" "$dsize" "$dused" "$rx" "$tx" "$distro" "$kernel" "$arch" "$brand"
-`.replace(/\n/g, ' ');
+printf '{"hostname":"%s","uptime":%s,"load1":%s,"load5":%s,"load15":%s,"cores":%s,"cpu":%s,"memTotal":%s,"memUsed":%s,"diskSize":%s,"diskUsed":%s,"rxBytes":%s,"txBytes":%s,"distro":"%s","kernel":"%s","arch":"%s","brand":"%s"}' "$hostname" "$uptime_sec" "$l1" "$l5" "$l15" "$cores" "$cpu_pct" "$mem_total" "$((mem_total-mem_avail))" "$dsize" "$dused" "$rx" "$tx" "$distro" "$kernel" "$arch" "$brand"
+`);
 
 function pct(used, total) {
   if (!total || total <= 0) return 0;

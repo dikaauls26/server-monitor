@@ -7,6 +7,7 @@
 
 const sshService = require('./sshService');
 const serverRepository = require('../repositories/serverRepository');
+const { shellOneLine } = require('./shellScript');
 
 const SERVICE_KEYS = [
   { key: 'mysql', label: 'MySQL / MariaDB', units: 'mysql mariadb mysqld' },
@@ -17,7 +18,7 @@ const SERVICE_KEYS = [
   { key: 'lscpd', label: 'LSCPD (CyberPanel)', units: 'lscpd' },
 ];
 
-const MONITOR_SCRIPT = `
+const MONITOR_SCRIPT = shellOneLine(`
 hostname=$(hostname 2>/dev/null || echo unknown)
 uptime_sec=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)
 read l1 l5 l15 _ < /proc/loadavg 2>/dev/null || l1=0; l5=0; l15=0
@@ -25,17 +26,35 @@ cores=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || ech
 mem_total=$(awk '/MemTotal/ {print $2*1024}' /proc/meminfo 2>/dev/null || echo 0)
 mem_avail=$(awk '/MemAvailable/ {print $2*1024}' /proc/meminfo 2>/dev/null || echo 0)
 cpu_line=$(grep '^cpu ' /proc/stat 2>/dev/null)
-if [ -n "$cpu_line" ]; then set -- $cpu_line; idle=$5; total=0; for v in $2 $3 $4 $5 $6 $7 $8; do total=$((total+v)); done; used=$((total-idle)); cpu_pct=$(awk -v u=$used -v t=$total 'BEGIN{if(t>0) printf "%.2f", u/t*100; else print "0"}'); else cpu_pct=0; fi
+if [ -n "$cpu_line" ]; then
+  set -- $cpu_line
+  idle=$5
+  total=0
+  for v in $2 $3 $4 $5 $6 $7 $8; do total=$((total+v)); done
+  used=$((total-idle))
+  cpu_pct=$(awk -v u=$used -v t=$total 'BEGIN{if(t>0) printf "%.2f", u/t*100; else print "0"}')
+else
+  cpu_pct=0
+fi
 disk_line=$(df -B1 --output=size,used,target 2>/dev/null | awk 'NR>1 && $3=="/" {print $1","$2; exit}')
-if [ -z "$disk_line" ]; then disk_line=$(df -B1 2>/dev/null | awk 'NR>1 && $6=="/" {print $2","$3; exit}'); fi
-dsize=$(echo "$disk_line" | cut -d, -f1); dused=$(echo "$disk_line" | cut -d, -f2)
+if [ -z "$disk_line" ]; then
+  disk_line=$(df -B1 2>/dev/null | awk 'NR>1 && $6=="/" {print $2","$3; exit}')
+fi
+dsize=$(echo "$disk_line" | cut -d, -f1)
+dused=$(echo "$disk_line" | cut -d, -f2)
 distro=$(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"')
-kernel=$(uname -r 2>/dev/null); arch=$(uname -m 2>/dev/null)
+kernel=$(uname -r 2>/dev/null)
+arch=$(uname -m 2>/dev/null)
 brand=$(grep -m1 "model name" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | sed 's/^[ \\t]*//')
 check_svc(){ key=$1; label=$2; shift 2; st=not-installed; inst=0; ctrl=0; for u in "$@"; do if systemctl cat \${u}.service >/dev/null 2>&1; then inst=1; ctrl=1; active=$(systemctl is-active \${u} 2>/dev/null); if [ "$active" = "active" ]; then st=running; else st=stopped; fi; break; fi; done; printf '"%s":{"label":"%s","status":"%s","installed":%s,"controllable":%s}' "$key" "$label" "$st" "$inst" "$ctrl"; }
-svc=$(check_svc mysql "MySQL / MariaDB" mysql mariadb mysqld); svc="$svc,$(check_svc redis Redis redis-server redis)"; svc="$svc,$(check_svc nginx Nginx nginx)"; svc="$svc,$(check_svc postfix Postfix postfix)"; svc="$svc,$(check_svc openlitespeed OpenLiteSpeed lshttpd lsws)"; svc="$svc,$(check_svc lscpd "LSCPD (CyberPanel)" lscpd)"
+svc=$(check_svc mysql 'MySQL / MariaDB' mysql mariadb mysqld)
+svc="$svc,$(check_svc redis Redis redis-server redis)"
+svc="$svc,$(check_svc nginx Nginx nginx)"
+svc="$svc,$(check_svc postfix Postfix postfix)"
+svc="$svc,$(check_svc openlitespeed OpenLiteSpeed lshttpd lsws)"
+svc="$svc,$(check_svc lscpd 'LSCPD (CyberPanel)' lscpd)"
 printf '{"hostname":"%s","uptime":%s,"load1":%s,"load5":%s,"load15":%s,"cores":%s,"cpu":%s,"memTotal":%s,"memUsed":%s,"diskSize":%s,"diskUsed":%s,"distro":"%s","kernel":"%s","arch":"%s","brand":"%s","services":{%s}}' "$hostname" "$uptime_sec" "$l1" "$l5" "$l15" "$cores" "$cpu_pct" "$mem_total" "$((mem_total-mem_avail))" "$dsize" "$dused" "$distro" "$kernel" "$arch" "$brand" "$svc"
-`.replace(/\n/g, ' ');
+`);
 
 function pct(used, total) {
   if (!total || total <= 0) return 0;
