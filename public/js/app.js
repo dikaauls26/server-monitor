@@ -1263,7 +1263,9 @@
         return;
       }
       queueBody.innerHTML = d.jobs.map(function (j) {
-        var result = j.status === 'failed' ? esc(j.error || j.message || 'Failed') : esc(j.message || '—');
+        var result = j.status === 'failed'
+          ? esc(j.message || j.error || 'Failed')
+          : esc(j.message || 'Deleted');
         return '<tr><td class="small text-secondary">' + j.id + '</td><td>' + esc(j.domain) + '</td><td class="small">' + esc(j.serverId) + '</td><td>' +
           queueStatusPill(j.status) + '</td><td class="small text-break">' + result + '</td></tr>';
       }).join('');

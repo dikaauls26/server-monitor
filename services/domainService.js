@@ -296,18 +296,45 @@ function parseListOutput(stdout) {
 
 function parseDeleteOutput(stdout) {
   const raw = (stdout || '').trim();
-  const start = raw.lastIndexOf('{');
-  const end = raw.lastIndexOf('}');
-  if (start !== -1 && end !== -1) {
+  if (!raw) return { ok: false, error: 'Empty delete response.' };
+
+  // Script prints one JSON line; cyberpanel may log above it — parse lines bottom-up.
+  const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    if (!lines[i].startsWith('{')) continue;
     try {
-      return JSON.parse(raw.slice(start, end + 1));
-    } catch (err) {
+      const parsed = JSON.parse(lines[i]);
+      if (typeof parsed.ok === 'boolean') return parsed;
+      if (parsed.success === 1) {
+        return { ok: true, message: 'Domain removed via CyberPanel.', output: lines[i] };
+      }
+    } catch (_) {
+      /* try previous line */
+    }
+  }
+
+  // Whole stdout might be a single JSON object.
+  const start = raw.indexOf('{');
+  if (start !== -1) {
+    try {
+      const parsed = JSON.parse(raw.slice(start));
+      if (typeof parsed.ok === 'boolean') return parsed;
+      if (parsed.success === 1) {
+        return { ok: true, message: 'Domain removed via CyberPanel.', output: raw.slice(-500) };
+      }
+    } catch (_) {
       /* fall through */
     }
   }
-  if (/success["\s]*:\s*1/.test(raw)) {
+
+  if (/"ok"\s*:\s*true/i.test(raw)) {
+    return { ok: true, message: 'Domain removed from CyberPanel.', output: raw.slice(-500) };
+  }
+  const unescaped = raw.replace(/\\/g, '');
+  if (/"success"\s*:\s*1/.test(unescaped)) {
     return { ok: true, message: 'Domain removed via CyberPanel.', output: raw.slice(-500) };
   }
+
   return { ok: false, error: raw.slice(-400) || 'Delete failed.' };
 }
 

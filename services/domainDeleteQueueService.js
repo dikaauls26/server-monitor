@@ -142,8 +142,9 @@ async function processNextJob() {
   const msg = result.message || '';
   const warn = (result.warnings || []).join(' ');
   const fullMsg = [msg, warn].filter(Boolean).join(' ');
+  const success = result.ok === true || result.ok === 1;
 
-  if (result.ok) {
+  if (success) {
     db.prepare(
       `UPDATE domain_delete_jobs SET status = 'done', message = ?, error = NULL, finished_at = datetime('now') WHERE id = ?`
     ).run(fullMsg || 'Deleted', job.id);
@@ -174,6 +175,12 @@ function resumeWorker() {
   const db = getDb();
   db.prepare("UPDATE domain_delete_jobs SET status = 'queued', started_at = NULL WHERE status = 'running'")
     .run();
+  // Fix jobs wrongly marked failed when response contained ok:true (parser bug v1.7.0)
+  db.prepare(
+    `UPDATE domain_delete_jobs SET status = 'done', message = COALESCE(NULLIF(message, ''), 'Domain removed'),
+     error = NULL
+     WHERE status = 'failed' AND (error LIKE '%"ok": true%' OR error LIKE '%"ok":true%')`
+  ).run();
   const pending = db.prepare("SELECT COUNT(*) AS c FROM domain_delete_jobs WHERE status = 'queued'").get();
   if (pending.c) startWorker();
 }
