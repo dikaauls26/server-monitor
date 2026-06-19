@@ -50,6 +50,8 @@ if raw:
             else:
                 wobj = w
                 d = wobj.get('domain') or wobj.get('domainName') or ''
+            if d:
+                d = d.strip().lower()
             if d and d not in seen:
                 seen.add(d)
                 sites.append({'domain': d, 'type': 'primary', 'master': None})
@@ -57,6 +59,8 @@ if raw:
             for key in ('childDomains', 'children', 'childdomains'):
                 for c in (wobj.get(key) or []):
                     cd = c if isinstance(c, str) else (c.get('domain') if isinstance(c, dict) else None)
+                    if cd:
+                        cd = cd.strip().lower()
                     if cd and cd not in seen:
                         seen.add(cd)
                         sites.append({'domain': cd, 'type': 'child', 'master': master})
@@ -77,12 +81,12 @@ if os.path.isfile(pw_file):
             except Exception:
                 return ''
         for line in mysql_q('SELECT domain FROM websiteFunctions_childdomains').splitlines():
-            cd = line.strip()
+            cd = line.strip().lower()
             if cd and cd not in seen:
                 seen.add(cd)
                 sites.append({'domain': cd, 'type': 'child', 'master': None})
         for line in mysql_q('SELECT domain FROM websiteFunctions_websites').splitlines():
-            d = line.strip()
+            d = line.strip().lower()
             if d and d not in seen:
                 seen.add(d)
                 sites.append({'domain': d, 'type': 'primary', 'master': None})
@@ -277,6 +281,11 @@ function assertDomain(domain) {
   return d;
 }
 
+function findSite(sites, domain) {
+  const d = assertDomain(domain);
+  return (sites || []).find((s) => String(s.domain || '').toLowerCase() === d) || null;
+}
+
 function parseListOutput(stdout) {
   const raw = (stdout || '').trim();
   if (!raw) {
@@ -385,10 +394,13 @@ async function deleteLocal(domain, type) {
   const dtype = type === 'child' ? 'child' : 'primary';
 
   const before = await listLocal({ checkHttp: false });
-  const sites = before.data && before.data.sites ? before.data.sites : [];
-  const found = sites.find((s) => s.domain === d);
+  if (!before.data || !before.data.available) {
+    return { ok: false, error: before.data?.error || before.error || 'Could not load domain list before delete.' };
+  }
+  const sites = before.data.sites || [];
+  const found = findSite(sites, d);
   if (!found) {
-    return { ok: false, error: `Domain "${d}" is not in CyberPanel.` };
+    return { ok: true, message: `Domain "${d}" already removed from CyberPanel.` };
   }
 
   const useType = dtype === 'child' || found.type === 'child' ? 'child' : 'primary';
@@ -399,6 +411,7 @@ async function deleteLocal(domain, type) {
 
 module.exports = {
   assertDomain,
+  findSite,
   parseListOutput,
   parseDeleteOutput,
   summarize,

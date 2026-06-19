@@ -58,14 +58,24 @@ function getQueueStatus() {
 }
 
 function isDuplicateQueued(serverId, domain) {
+  const sid = String(serverId);
   const row = getDb()
     .prepare(
       `SELECT id FROM domain_delete_jobs
        WHERE server_id = ? AND domain = ? AND status IN ('queued','running')
        LIMIT 1`
     )
-    .get(String(serverId), domain);
-  return !!row;
+    .get(sid, domain);
+  if (row) return true;
+  const recent = getDb()
+    .prepare(
+      `SELECT id FROM domain_delete_jobs
+       WHERE server_id = ? AND domain = ? AND status = 'done'
+         AND finished_at >= datetime('now', '-10 minutes')
+       LIMIT 1`
+    )
+    .get(sid, domain);
+  return !!recent;
 }
 
 function enqueue(serverId, items) {
@@ -85,6 +95,7 @@ function enqueue(serverId, items) {
 
   const added = [];
   const skipped = [];
+  const batchSeen = new Set();
 
   for (const item of items) {
     let domain;
@@ -96,8 +107,14 @@ function enqueue(serverId, items) {
       skipped.push({ domain: item.domain || String(item), reason: err.message });
       continue;
     }
+    const batchKey = `${sid}:${domain}`;
+    if (batchSeen.has(batchKey)) {
+      skipped.push({ domain, reason: 'Duplicate in selection' });
+      continue;
+    }
+    batchSeen.add(batchKey);
     if (isDuplicateQueued(sid, domain)) {
-      skipped.push({ domain, reason: 'Already queued' });
+      skipped.push({ domain, reason: 'Already queued or recently deleted' });
       continue;
     }
     const info = insert.run(sid, domain, type);
@@ -180,6 +197,19 @@ function resumeWorker() {
     `UPDATE domain_delete_jobs SET status = 'done', message = COALESCE(NULLIF(message, ''), 'Domain removed'),
      error = NULL
      WHERE status = 'failed' AND (error LIKE '%"ok": true%' OR error LIKE '%"ok":true%')`
+  ).run();
+  db.prepare(
+    `UPDATE domain_delete_jobs SET status = 'done',
+     message = 'Already removed (earlier delete succeeded)',
+     error = NULL, finished_at = COALESCE(finished_at, datetime('now'))
+     WHERE status = 'failed' AND error LIKE '%not in CyberPanel%'
+       AND EXISTS (
+         SELECT 1 FROM domain_delete_jobs earlier
+         WHERE earlier.server_id = domain_delete_jobs.server_id
+           AND earlier.domain = domain_delete_jobs.domain
+           AND earlier.status = 'done'
+           AND earlier.id < domain_delete_jobs.id
+       )`
   ).run();
   const pending = db.prepare("SELECT COUNT(*) AS c FROM domain_delete_jobs WHERE status = 'queued'").get();
   if (pending.c) startWorker();

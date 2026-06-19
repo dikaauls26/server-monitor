@@ -1293,9 +1293,16 @@
         return;
       }
       queueBody.innerHTML = d.jobs.map(function (j) {
-        var result = j.status === 'failed'
-          ? esc(j.message || j.error || 'Failed')
-          : esc(j.message || 'Deleted');
+        var result;
+        if (j.status === 'running') {
+          result = 'Deleting…';
+        } else if (j.status === 'queued') {
+          result = 'Waiting…';
+        } else if (j.status === 'failed') {
+          result = esc(j.message || j.error || 'Failed');
+        } else {
+          result = esc(j.message || 'Deleted');
+        }
         return '<tr><td class="small text-secondary">' + j.id + '</td><td>' + esc(j.domain) + '</td><td class="small">' + esc(j.serverId) + '</td><td>' +
           queueStatusPill(j.status) + '</td><td class="small text-break">' + result + '</td></tr>';
       }).join('');

@@ -46,10 +46,13 @@ async function deleteDomain(serverId, domain, type) {
 
   const d = domainService.assertDomain(domain);
   const before = await list(serverId, { checkHttp: false });
-  const sites = before.data && before.data.sites ? before.data.sites : [];
-  const found = sites.find((s) => s.domain === d);
+  if (!before.ok || !before.data || before.data.available === false) {
+    return { ok: false, error: before.error || before.data?.error || 'Could not load domain list before delete.' };
+  }
+  const sites = before.data.sites || [];
+  const found = domainService.findSite(sites, d);
   if (!found) {
-    return { ok: false, error: `Domain "${d}" is not in CyberPanel on this server.` };
+    return { ok: true, message: `Domain "${d}" already removed from CyberPanel.` };
   }
 
   const useType = type === 'child' || found.type === 'child' ? 'child' : 'primary';
