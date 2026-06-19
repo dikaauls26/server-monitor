@@ -1,0 +1,44 @@
+<%- include('partials/layout-open') %>
+
+<div class="sm-card mb-3">
+  <div class="sm-card-head">
+    <span><i class="bi bi-grid-3x3-gap"></i> Monitoring All Servers</span>
+    <span class="text-secondary small" id="maUpdated">—</span>
+  </div>
+  <div id="maActionResult" class="alert d-none py-2 mb-3" role="alert"></div>
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-4 col-lg-3">
+      <label class="form-label small mb-1">Service</label>
+      <select class="form-select form-select-sm" id="maService">
+        <option value="nginx">Nginx</option>
+        <option value="mysql">MySQL / MariaDB</option>
+        <option value="redis">Redis</option>
+        <option value="postfix">Postfix</option>
+        <option value="openlitespeed">OpenLiteSpeed</option>
+        <option value="lscpd">LSCPD (CyberPanel)</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-5 col-lg-4">
+      <label class="form-label small mb-1">Bulk action (all servers)</label>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-sm btn-outline-success" data-ma-bulk="start" type="button"><i class="bi bi-play-fill"></i> Start All</button>
+        <button class="btn btn-sm btn-outline-primary" data-ma-bulk="restart" type="button"><i class="bi bi-arrow-clockwise"></i> Restart All</button>
+        <button class="btn btn-sm btn-outline-danger" data-ma-bulk="stop" type="button"><i class="bi bi-stop-fill"></i> Stop All</button>
+      </div>
+    </div>
+    <div class="col-12 col-md-3 col-lg-5 text-md-end">
+      <button class="btn btn-sm btn-outline-info me-1" id="maConnectAll" type="button"><i class="bi bi-plug"></i> Connect All</button>
+      <button class="btn btn-sm btn-outline-secondary" id="maRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+  </div>
+  <p class="text-secondary small mt-2 mb-0">
+    <i class="bi bi-info-circle"></i> Shows local server + all SSH servers. Bulk actions run on every connected server.
+  </p>
+</div>
+
+<div id="maGrid" class="row g-3">
+  <div class="col-12 text-secondary text-center py-4">Loading servers…</div>
+</div>
+
+<script>window.SM_PAGE = 'monitoring-all';</script>
+<%- include('partials/layout-close') %>

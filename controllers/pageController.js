@@ -25,6 +25,14 @@ function monitoring(req, res) {
   });
 }
 
+function monitoringAll(req, res) {
+  res.render('monitoring-all', {
+    title: 'Monitoring All',
+    activePage: 'monitoring-all',
+    alertCount: alertRepository.countUnacknowledged(),
+  });
+}
+
 function mail(req, res) {
   res.render('mail', {
     title: 'Mail',
@@ -78,4 +86,4 @@ function settings(req, res) {
   });
 }
 
-module.exports = { dashboard, monitoring, mail, antivirus, servers, logs, alerts, settings };
+module.exports = { dashboard, monitoring, monitoringAll, mail, antivirus, servers, logs, alerts, settings };

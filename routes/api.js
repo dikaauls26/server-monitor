@@ -34,4 +34,8 @@ router.post('/servers/:id/connect', apiController.connectServer);
 router.post('/servers/:id/disconnect', apiController.disconnectServer);
 router.delete('/servers/:id', apiController.deleteServer);
 
+router.get('/monitoring-all', apiController.monitoringAll);
+router.post('/monitoring-all/control', apiController.monitoringAllControl);
+router.post('/monitoring-all/connect-all', apiController.monitoringAllConnect);
+
 module.exports = router;

@@ -12,6 +12,7 @@ router.use(requireAuth);
 router.get('/', pageController.dashboard);
 router.get('/dashboard', pageController.dashboard);
 router.get('/monitoring', pageController.monitoring);
+router.get('/monitoring-all', pageController.monitoringAll);
 router.get('/mail', pageController.mail);
 router.get('/antivirus', pageController.antivirus);
 router.get('/servers', pageController.servers);

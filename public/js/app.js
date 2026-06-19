@@ -702,11 +702,193 @@
     poller(load, 8000);
   }
 
+  // ===================================================================
+  // MONITORING ALL
+  // ===================================================================
+  function initMonitoringAll() {
+    var grid = $('#maGrid');
+    var resultEl = $('#maActionResult');
+    var serviceSel = $('#maService');
+
+    function showResult(ok, msg) {
+      if (!resultEl) return;
+      resultEl.className = 'alert py-2 mb-3 ' + (ok ? 'alert-success' : 'alert-warning');
+      resultEl.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(msg);
+      resultEl.classList.remove('d-none');
+    }
+
+    function statusPill(s) {
+      if (s.status === 'not-installed' || s.installed === false) {
+        return '<span class="sm-pill not-installed"><span class="dot"></span>not installed</span>';
+      }
+      return pill(s.status);
+    }
+
+    function usageBar(pct, cls) {
+      var v = Math.max(0, Math.min(100, pct || 0));
+      var barCls = v >= 90 ? 'bg-danger' : (v >= 75 ? 'bg-warning' : cls || 'bg-info');
+      return '<div class="progress sm-progress mb-0"><div class="progress-bar ' + barCls + '" style="width:' + v + '%"></div></div>';
+    }
+
+    function ctlButtons(s, serverId) {
+      if (!s.controllable) return '<span class="text-secondary small">—</span>';
+      return '<div class="btn-group btn-group-sm sm-ctl">' +
+        '<button class="btn btn-outline-success" data-ma-ctl="start" data-ma-svc="' + s.key + '" data-ma-server="' + esc(String(serverId)) + '" title="Start"><i class="bi bi-play-fill"></i></button>' +
+        '<button class="btn btn-outline-primary" data-ma-ctl="restart" data-ma-svc="' + s.key + '" data-ma-server="' + esc(String(serverId)) + '" title="Restart"><i class="bi bi-arrow-clockwise"></i></button>' +
+        '<button class="btn btn-outline-danger" data-ma-ctl="stop" data-ma-svc="' + s.key + '" data-ma-server="' + esc(String(serverId)) + '" title="Stop"><i class="bi bi-stop-fill"></i></button>' +
+        '</div>';
+    }
+
+    function connPill(srv) {
+      if (srv.connected && srv.ok !== false) {
+        return '<span class="sm-pill running"><span class="dot"></span>connected</span>';
+      }
+      return '<span class="sm-pill stopped"><span class="dot"></span>disconnected</span>';
+    }
+
+    function renderServerCard(srv) {
+      var conn = connPill(srv);
+
+      if (srv.ok === false || !srv.connected) {
+        return '<div class="col-12 col-xl-6"><div class="sm-card sm-server-card h-100">' +
+          '<div class="d-flex justify-content-between align-items-start mb-2">' +
+          '<div><h6 class="mb-1"><i class="bi bi-hdd-network me-1"></i>' + esc(srv.name) + '</h6>' +
+          '<div class="text-secondary small">' + esc(srv.host || '') + (srv.port ? ':' + srv.port : '') + '</div></div>' +
+          conn + '</div>' +
+          '<div class="alert alert-danger py-2 mb-0 small">' + esc(srv.error || 'Unable to load data') + '</div>' +
+          '</div></div>';
+      }
+
+      var cpu = srv.cpu || {};
+      var mem = srv.memory || {};
+      var disk = srv.disk || {};
+      var load = srv.load || {};
+      var pm2 = srv.pm2 || { apps: [], online: 0, total: 0, installed: false };
+
+      var svcRows = (srv.services || []).map(function (svc) {
+        return '<tr><td>' + esc(svc.label) + '</td><td>' + statusPill(svc) + '</td><td class="text-end">' +
+          ctlButtons(svc, srv.id) + '</td></tr>';
+      }).join('');
+
+      var pm2Rows = '';
+      if (pm2.installed && pm2.apps && pm2.apps.length) {
+        pm2Rows = pm2.apps.slice(0, 5).map(function (a) {
+          return '<tr><td>' + esc(a.name) + '</td><td>' + pill(a.status) + '</td><td>' +
+            (a.cpu != null ? a.cpu + '%' : '—') + '</td><td>' + fmtBytes(a.memory) + '</td></tr>';
+        }).join('');
+      } else {
+        pm2Rows = '<tr><td colspan="4" class="text-secondary text-center small">No PM2 apps</td></tr>';
+      }
+
+      return '<div class="col-12 col-xl-6"><div class="sm-card sm-server-card h-100">' +
+        '<div class="d-flex justify-content-between align-items-start mb-3">' +
+        '<div><h6 class="mb-1"><i class="bi bi-hdd-network me-1"></i>' + esc(srv.name) +
+        (srv.local ? ' <span class="badge text-bg-primary">local</span>' : '') + '</h6>' +
+        '<div class="text-secondary small">' + esc(srv.hostname || srv.host || '') + ' · ' + esc((srv.os && srv.os.distro) || '') + '</div>' +
+        '<div class="text-secondary small">' + esc((cpu.brand || 'CPU')) + ' · ' + (cpu.cores || '?') + ' cores</div></div>' +
+        conn + '</div>' +
+        '<div class="row g-2 mb-3">' +
+        '<div class="col-4"><div class="small text-secondary">CPU</div><div class="fw-semibold">' + (cpu.usage || 0).toFixed(1) + '%</div>' + usageBar(cpu.usage, 'bg-info') + '</div>' +
+        '<div class="col-4"><div class="small text-secondary">RAM</div><div class="fw-semibold">' + (mem.usage || 0).toFixed(1) + '%</div>' + usageBar(mem.usage, 'bg-success') + '</div>' +
+        '<div class="col-4"><div class="small text-secondary">Disk</div><div class="fw-semibold">' + (disk.usage || 0).toFixed(1) + '%</div>' + usageBar(disk.usage, 'bg-warning') + '</div>' +
+        '</div>' +
+        '<div class="d-flex flex-wrap gap-3 small text-secondary mb-3">' +
+        '<span><i class="bi bi-activity"></i> Load: ' + (load.one || 0) + ' / ' + (load.five || 0) + ' / ' + (load.fifteen || 0) + '</span>' +
+        '<span><i class="bi bi-clock"></i> ' + esc((srv.uptime && srv.uptime.human) || '—') + '</span>' +
+        '<span><i class="bi bi-boxes"></i> PM2: ' + (pm2.online || 0) + '/' + (pm2.total || 0) + '</span>' +
+        '</div>' +
+        '<div class="table-responsive mb-2"><table class="table sm-table mb-0"><thead><tr><th>Service</th><th>Status</th><th class="text-end">Action</th></tr></thead><tbody>' +
+        svcRows + '</tbody></table></div>' +
+        '<div class="sm-card-head pt-0"><span class="small"><i class="bi bi-boxes"></i> PM2</span></div>' +
+        '<div class="table-responsive"><table class="table sm-table mb-0"><thead><tr><th>Name</th><th>Status</th><th>CPU</th><th>RAM</th></tr></thead><tbody>' +
+        pm2Rows + '</tbody></table></div>' +
+        '</div></div>';
+    }
+
+    function render(d) {
+      $('#maUpdated').textContent = (d.connected || 0) + ' / ' + (d.total || 0) + ' connected · ' + new Date(d.timestamp).toLocaleTimeString();
+      if (!grid) return;
+      if (!d.servers || !d.servers.length) {
+        grid.innerHTML = '<div class="col-12 text-secondary text-center py-4">No servers configured. Add SSH servers in the Servers menu.</div>';
+        return;
+      }
+      grid.innerHTML = d.servers.map(renderServerCard).join('');
+    }
+
+    function load() {
+      return fetchJSON('/api/monitoring-all').then(function (res) {
+        if (res.ok) { render(res.data); markLive(true); } else markLive(false);
+      }).catch(function () { markLive(false); });
+    }
+
+    function runControl(serverId, service, action, confirmMsg) {
+      if (confirmMsg && !confirm(confirmMsg)) return Promise.resolve();
+      if (resultEl) resultEl.classList.add('d-none');
+      return fetchJSON('/api/monitoring-all/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serverId: serverId, service: service, action: action })
+      }).then(function (res) {
+        var lines = (res.results || []).map(function (r) {
+          return esc(r.name || r.serverId) + ': ' + (r.message || r.error || (r.ok ? 'OK' : 'Failed'));
+        }).join('<br>');
+        showResult(res.ok, res.message || lines || 'Done.');
+        return load();
+      }).catch(function () { showResult(false, 'Request failed.'); });
+    }
+
+    function runBulk(action) {
+      var svc = serviceSel ? serviceSel.value : 'nginx';
+      if (!confirm('Run ' + action.toUpperCase() + ' on "' + svc + '" for ALL servers?')) return;
+      if (resultEl) resultEl.classList.add('d-none');
+      fetchJSON('/api/monitoring-all/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targets: 'all', service: svc, action: action })
+      }).then(function (res) {
+        var lines = (res.results || []).map(function (r) {
+          return esc(r.name || r.serverId) + ': ' + (r.message || r.error || (r.ok ? 'OK' : 'Failed'));
+        }).join('<br>');
+        showResult(res.ok, res.message || lines || 'Done.');
+        load();
+      }).catch(function () { showResult(false, 'Request failed.'); });
+    }
+
+    document.addEventListener('click', function (e) {
+      if (window.SM_PAGE !== 'monitoring-all') return;
+      var bulk = e.target.closest ? e.target.closest('[data-ma-bulk]') : null;
+      if (bulk) { e.preventDefault(); runBulk(bulk.getAttribute('data-ma-bulk')); return; }
+      var ctl = e.target.closest ? e.target.closest('[data-ma-ctl]') : null;
+      if (ctl) {
+        e.preventDefault();
+        var act = ctl.getAttribute('data-ma-ctl');
+        var svc = ctl.getAttribute('data-ma-svc');
+        var sid = ctl.getAttribute('data-ma-server');
+        var msg = act === 'stop' ? 'Stop ' + svc + ' on this server?' : null;
+        runControl(sid, svc, act, msg);
+      }
+    });
+
+    var connectAll = $('#maConnectAll');
+    var refreshBtn = $('#maRefresh');
+    if (connectAll) connectAll.addEventListener('click', function () {
+      fetchJSON('/api/monitoring-all/connect-all', { method: 'POST' }).then(function (res) {
+        showResult(true, 'Connect all completed.');
+        load();
+      }).catch(function () { showResult(false, 'Connect failed.'); });
+    });
+    if (refreshBtn) refreshBtn.addEventListener('click', load);
+
+    load();
+    poller(load, 10000);
+  }
+
   // ---------- Boot ----------
   document.addEventListener('DOMContentLoaded', function () {
     switch (window.SM_PAGE) {
       case 'dashboard': initDashboard(); break;
       case 'monitoring': initMonitoring(); break;
+      case 'monitoring-all': initMonitoringAll(); break;
       case 'mail': initMail(); break;
       case 'antivirus': initAntivirus(); break;
       case 'servers': initServers(); break;

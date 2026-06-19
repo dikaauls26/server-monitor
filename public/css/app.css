@@ -142,6 +142,10 @@ body.sm-body {
 .sm-service .name { font-weight: 600; display: flex; align-items: center; gap: .5rem; }
 .sm-service .name i { color: var(--sm-primary); }
 
+/* ---------- Monitoring All server cards ---------- */
+.sm-server-card { border: 1px solid var(--sm-border); }
+.sm-server-card h6 { font-size: 1rem; font-weight: 600; }
+
 /* ---------- Network ---------- */
 .sm-net { display: flex; flex-direction: column; gap: .5rem; }
 .sm-net-item { display: flex; justify-content: space-between; align-items: center; }

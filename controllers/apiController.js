@@ -14,6 +14,7 @@ const antivirusService = require('../services/antivirusService');
 const sshService = require('../services/sshService');
 const remoteSystemService = require('../services/remoteSystemService');
 const serverRepository = require('../repositories/serverRepository');
+const monitoringAllService = require('../services/monitoringAllService');
 
 async function overview(req, res, next) {
   try {
@@ -255,6 +256,38 @@ function deleteServer(req, res, next) {
   }
 }
 
+async function monitoringAll(req, res, next) {
+  try {
+    const data = await monitoringAllService.getAll();
+    res.json({ ok: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function monitoringAllControl(req, res, next) {
+  try {
+    const { targets, service, action, serverId } = req.body || {};
+    let targetList = targets;
+    if (serverId != null && serverId !== '') {
+      targetList = [serverId];
+    }
+    const result = await monitoringAllService.controlBulk({ targets: targetList || 'all', service, action });
+    res.status(result.ok ? 200 : 207).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function monitoringAllConnect(req, res, next) {
+  try {
+    const result = await monitoringAllService.connectAll();
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   overview,
   services,
@@ -276,4 +309,7 @@ module.exports = {
   connectServer,
   disconnectServer,
   deleteServer,
+  monitoringAll,
+  monitoringAllControl,
+  monitoringAllConnect,
 };
