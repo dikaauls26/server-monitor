@@ -41,6 +41,26 @@ APP_PORT="$(get_env PORT)"; APP_PORT="${APP_PORT:-19091}"
 log "Domain: ${DOMAIN}"
 log "App backend: http://127.0.0.1:${APP_PORT}"
 
+port_busy() {
+  local p="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -tlnH 2>/dev/null | awk -v p=":${p}" '$4 ~ p"$" {found=1} END{exit !found}'
+    return
+  fi
+  return 1
+}
+
+if port_busy 80; then
+  echo ""
+  warn "Port 80 is already in use (CyberPanel / OpenLiteSpeed / Apache)."
+  warn "Let's Encrypt HTTP verification will fail with 404."
+  echo ""
+  err "Use DuckDNS DNS challenge instead:"
+  err "  bash setup-ssl-duckdns.sh ${DOMAIN} YOUR_DUCKDNS_TOKEN ${EMAIL}"
+  err "Token: https://www.duckdns.org → login → copy token"
+  exit 1
+fi
+
 # ---- Detect package manager -----------------------------------------------
 PKG=""
 if command -v apt-get >/dev/null 2>&1; then PKG="apt";
