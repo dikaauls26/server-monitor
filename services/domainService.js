@@ -128,7 +128,7 @@ PY
 
 const DELETE_SCRIPT = (domain, type) => remoteBash(`
 python3 << 'PY'
-import json, subprocess, os, shlex
+import json, subprocess, os, shlex, re, shutil
 
 domain = ${JSON.stringify(domain)}
 dtype = ${JSON.stringify(type)}
@@ -140,11 +140,102 @@ def sh(cmd, timeout=120):
     except Exception as e:
         return str(e)
 
-if not os.path.isfile('/usr/bin/cyberpanel') and not os.path.isfile('/usr/local/bin/cyberpanel'):
-    import shutil
-    if not shutil.which('cyberpanel'):
-        print(json.dumps({'ok': False, 'error': 'CyberPanel CLI not found'}))
-        raise SystemExit(0)
+def db_pass():
+    pfile = '/etc/cyberpanel/mysqlPassword'
+    if os.path.isfile(pfile):
+        return open(pfile, encoding='utf-8', errors='replace').read().strip()
+    return ''
+
+def mysql_exec(sql, timeout=30):
+    pw = db_pass()
+    if not pw:
+        return ''
+    cmd = 'mysql -u root -p' + shlex.quote(pw) + ' cyberpanel -N -e ' + shlex.quote(sql)
+    return sh(cmd, timeout)
+
+def collect_domains():
+    found = set()
+    raw = sh('cyberpanel listWebsitesJson 2>/dev/null', 45)
+    if raw:
+        try:
+            data = json.loads(raw)
+            if isinstance(data, str):
+                data = json.loads(data)
+            if isinstance(data, dict):
+                data = data.get('data') or data.get('websites') or [data]
+            if isinstance(data, list):
+                for w in data:
+                    if isinstance(w, str):
+                        found.add(w)
+                        continue
+                    d = w.get('domain') or w.get('domainName') or ''
+                    if d:
+                        found.add(d)
+                    for key in ('childDomains', 'children', 'childdomains'):
+                        for c in (w.get(key) or []):
+                            cd = c if isinstance(c, str) else (c.get('domain') if isinstance(c, dict) else None)
+                            if cd:
+                                found.add(cd)
+        except Exception:
+            pass
+    pw = db_pass()
+    if pw:
+        for sql, kind in (
+            ('SELECT domain FROM websiteFunctions_websites', 'primary'),
+            ('SELECT domain FROM websiteFunctions_childdomains', 'child'),
+        ):
+            for line in mysql_exec(sql).splitlines():
+                d = line.strip()
+                if d:
+                    found.add(d)
+    return found
+
+def cp_success(out):
+    return '"success":1' in out.replace(' ', '').replace("'", '"') or '"success": 1' in out
+
+def deep_cleanup():
+    notes = []
+    pw = db_pass()
+    external_app = None
+    if pw:
+        if dtype == 'child':
+            mysql_exec('DELETE FROM websiteFunctions_childdomains WHERE domain=' + repr(domain))
+            notes.append('DB childdomains')
+        else:
+            ext = mysql_exec('SELECT externalApp FROM websiteFunctions_websites WHERE domain=' + repr(domain) + ' LIMIT 1')
+            external_app = ext.strip() if ext else None
+            wid = mysql_exec('SELECT id FROM websiteFunctions_websites WHERE domain=' + repr(domain) + ' LIMIT 1')
+            if wid.strip().isdigit():
+                mysql_exec('DELETE FROM websiteFunctions_childdomains WHERE master_id=' + wid.strip())
+            mysql_exec('DELETE FROM websiteFunctions_websites WHERE domain=' + repr(domain))
+            for tbl in ('e_domains', 'websiteFunctions_aliasdomains'):
+                try:
+                    mysql_exec('DELETE FROM ' + tbl + ' WHERE domain=' + repr(domain))
+                except Exception:
+                    pass
+            notes.append('DB websites')
+
+    if external_app:
+        sh('lscgctl reset-user --uid ' + shlex.quote(external_app) + ' 2>/dev/null || true', 20)
+        notes.append('lscgctl reset-user')
+
+    for path in (
+        '/home/' + domain,
+        '/usr/local/lsws/conf/vhosts/' + domain,
+        '/root/.acme.sh/' + domain,
+        '/home/vmail/' + domain,
+    ):
+        if os.path.exists(path):
+            subprocess.run(['rm', '-rf', path], check=False)
+            notes.append('rm ' + path)
+
+    sh('/usr/local/lsws/bin/lswsctrl reload 2>/dev/null || systemctl reload lsws 2>/dev/null || true', 30)
+    notes.append('lsws reload')
+    return notes
+
+if not shutil.which('cyberpanel'):
+    print(json.dumps({'ok': False, 'error': 'CyberPanel CLI not found'}))
+    raise SystemExit(0)
 
 q = shlex.quote(domain)
 if dtype == 'child':
@@ -152,17 +243,29 @@ if dtype == 'child':
 else:
     out = sh('sudo -n cyberpanel deleteWebsite --domainName ' + q + ' 2>&1 || cyberpanel deleteWebsite --domainName ' + q + ' 2>&1')
 
-acme = '/root/.acme.sh/' + domain
-if os.path.isdir(acme):
-    subprocess.run(['rm', '-rf', acme], check=False)
+warnings = []
+if 'lscgctl' in out and 'invalid choice' in out:
+    warnings.append('CyberPanel lscgctl remove failed (LiteSpeed update) — running deep cleanup.')
 
-verify = sh('cyberpanel listWebsitesJson 2>/dev/null', 45)
-still = domain in verify
+still = domain in collect_domains()
+if still and (cp_success(out) or 'lscgctl' in out):
+    cleanup_notes = deep_cleanup()
+    still = domain in collect_domains()
+    if cleanup_notes:
+        warnings.append('Cleanup: ' + ', '.join(cleanup_notes))
 
 if still:
-    print(json.dumps({'ok': False, 'error': 'Domain still listed in CyberPanel after delete', 'output': out[-600:]}))
+    print(json.dumps({
+        'ok': False,
+        'error': 'Domain still listed after delete + cleanup. Remove manually in CyberPanel/phpMyAdmin.',
+        'output': out[-800:],
+        'warnings': warnings,
+    }))
 else:
-    print(json.dumps({'ok': True, 'message': 'Domain removed via CyberPanel (vhost, SSL, mail records)', 'output': out[-600:]}))
+    msg = 'Domain removed from CyberPanel.'
+    if warnings:
+        msg += ' (' + '; '.join(warnings) + ')'
+    print(json.dumps({'ok': True, 'message': msg, 'output': out[-500:], 'warnings': warnings}))
 PY
 `);
 

@@ -1266,7 +1266,9 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ serverId: selectedServer, domain: domain, type: type })
       }).then(function (res) {
-        showResult(res.ok, res.message || res.error || 'Done.');
+        var msg = res.message || res.error || 'Done.';
+        if (res.warnings && res.warnings.length) msg += ' ' + res.warnings.join(' ');
+        showResult(res.ok, msg);
         if (res.ok) load();
       }).catch(function () {
         showResult(false, 'Delete request failed.');
