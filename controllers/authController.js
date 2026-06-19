@@ -1,7 +1,7 @@
 'use strict';
 
 const userRepository = require('../repositories/userRepository');
-const totpService = require('../services/totpService');
+const { rotateCsrfToken } = require('../middleware/csrf');
 
 const PENDING_2FA_MS = 5 * 60 * 1000;
 
@@ -45,6 +45,7 @@ function completeLogin(req, res, user) {
     req.session.userId = user.id;
     req.session.username = user.username;
     req.session.lastActivity = Date.now();
+    rotateCsrfToken(req);
     delete req.session.pending2FA;
     delete req.session.totpSetupSecret;
     res.redirect('/');

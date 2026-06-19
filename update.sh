@@ -34,6 +34,9 @@ fi
 log "Encrypting SSH credentials (if any)..."
 node -e "const r=require('./services/credentialMigrationService').encryptAll(); console.log(r.message||r.error||'done')" || warn "Credential encryption skipped."
 
+log "Hardening firewall (close public app port)..."
+bash scripts/firewall-lock.sh || warn "Firewall lock skipped."
+
 log "Restarting application..."
 if command -v pm2 >/dev/null 2>&1 && pm2 describe server-monitor >/dev/null 2>&1; then
   pm2 restart server-monitor --update-env

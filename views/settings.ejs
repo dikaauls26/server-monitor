@@ -22,6 +22,7 @@
     <div class="sm-card h-100">
       <div class="sm-card-head"><span><i class="bi bi-key"></i> Change Password</span></div>
       <form method="POST" action="/settings/password" autocomplete="off">
+        <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><%- include('partials/csrf-field') %><% } %>
         <div class="mb-3">
           <label class="form-label">Current password</label>
           <input type="password" class="form-control" name="current_password" required />
@@ -44,6 +45,7 @@
     <div class="sm-card mb-3">
       <div class="sm-card-head"><span><i class="bi bi-hdd-network"></i> Change Port</span></div>
       <form method="POST" action="/settings/port">
+        <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><%- include('partials/csrf-field') %><% } %>
         <div class="mb-3">
           <label class="form-label">HTTP port</label>
           <input type="number" class="form-control" name="port" min="1" max="65535"
@@ -57,6 +59,7 @@
     <div class="sm-card">
       <div class="sm-card-head"><span><i class="bi bi-sliders"></i> Alert Thresholds</span></div>
       <form method="POST" action="/settings/thresholds">
+        <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><%- include('partials/csrf-field') %><% } %>
         <div class="row g-2">
           <div class="col-4">
             <label class="form-label">CPU %</label>
@@ -104,6 +107,7 @@
       <img src="<%= qrDataUrl %>" alt="2FA QR code" width="220" height="220" class="border rounded" />
     </div>
     <form method="POST" action="/settings/2fa/enable" autocomplete="off">
+      <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><%- include('partials/csrf-field') %><% } %>
       <div class="mb-3">
         <label class="form-label">Enter 6-digit code to confirm</label>
         <input type="text" class="form-control" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required />
@@ -113,6 +117,7 @@
   <% } else if (totpEnabled) { %>
     <p class="text-secondary mb-3">Sign-in requires your authenticator app code after password.</p>
     <form method="POST" action="/settings/2fa/disable" autocomplete="off">
+      <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><%- include('partials/csrf-field') %><% } %>
       <div class="row g-2">
         <div class="col-md-6">
           <label class="form-label">Current password</label>
@@ -128,6 +133,7 @@
   <% } else { %>
     <p class="text-secondary mb-3">Add an extra layer of security using an authenticator app on your phone.</p>
     <form method="POST" action="/settings/2fa/setup">
+      <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><%- include('partials/csrf-field') %><% } %>
       <button class="btn btn-primary"><i class="bi bi-qr-code me-1"></i> Set up 2FA</button>
     </form>
   <% } %>
@@ -208,7 +214,12 @@
       btn.disabled = true;
       fetch('/api/security/encrypt-credentials', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-Token': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+        },
+        credentials: 'same-origin',
         body: '{}',
       })
         .then(function (r) { return r.json(); })

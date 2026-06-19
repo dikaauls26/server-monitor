@@ -255,6 +255,8 @@ if command -v pm2 >/dev/null 2>&1; then
   pm2 save >/dev/null 2>&1 || true
 fi
 
+bash scripts/firewall-lock.sh >/dev/null 2>&1 || true
+
 echo ""
 echo "=================================="
 echo " HTTPS (self-signed) ENABLED"

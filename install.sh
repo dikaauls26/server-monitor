@@ -229,17 +229,18 @@ pm2 save >/dev/null 2>&1 || true
 ok "PM2 configured."
 
 # ---- 9. Firewall ----------------------------------------------------------
+# Do NOT expose the app port publicly — access via Nginx HTTPS after setup-ssl*.sh
 if command -v ufw >/dev/null 2>&1 && run_root ufw status >/dev/null 2>&1; then
-  log "Opening port ${PORT} in UFW..."
-  run_root ufw allow "${PORT}/tcp" >/dev/null 2>&1 || warn "Could not modify UFW rules."
-  ok "Firewall rule added for port ${PORT} (ufw)."
+  log "Ensuring app port ${PORT} is NOT public (use Nginx HTTPS)..."
+  while run_root ufw status numbered 2>/dev/null | grep -q "${PORT}/tcp"; do
+    NUM="$(run_root ufw status numbered | grep "${PORT}/tcp" | head -n1 | sed -n 's/^\[\s*\([0-9]*\)\].*/\1/p')"
+    [ -n "$NUM" ] && run_root ufw --force delete "$NUM" >/dev/null 2>&1 || break
+  done
+  ok "Port ${PORT} not opened publicly (ufw)."
 elif command -v firewall-cmd >/dev/null 2>&1 && run_root firewall-cmd --state >/dev/null 2>&1; then
-  log "Opening port ${PORT} in firewalld..."
-  run_root firewall-cmd --permanent --add-port="${PORT}/tcp" >/dev/null 2>&1 || warn "Could not add firewalld rule."
-  run_root firewall-cmd --reload >/dev/null 2>&1 || true
-  ok "Firewall rule added for port ${PORT} (firewalld)."
+  warn "firewalld detected — do not expose port ${PORT} publicly. Use Nginx HTTPS."
 else
-  warn "No active ufw/firewalld detected; skipping. Open port ${PORT}/tcp manually if needed."
+  warn "Configure firewall so port ${PORT} is NOT public. Use Nginx HTTPS to access the panel."
 fi
 
 # ---- 10. Detect server IP -------------------------------------------------

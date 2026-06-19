@@ -25,6 +25,7 @@ const compression = require('compression');
 const config = require('./config');
 const migrate = require('./database/migrate');
 const { injectLocals } = require('./middleware/auth');
+const { injectCsrf, csrfProtect } = require('./middleware/csrf');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const alertService = require('./services/alertService');
 const antivirusService = require('./services/antivirusService');
@@ -126,6 +127,8 @@ app.use(
 );
 
 app.use(injectLocals);
+app.use(injectCsrf);
+app.use(csrfProtect);
 
 // --- Health check (no auth) -------------------------------------------------
 app.get('/healthz', (req, res) => res.json({ ok: true, uptime: process.uptime() }));

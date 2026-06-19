@@ -15,6 +15,7 @@
       <% } %>
 
       <form method="POST" action="/login/2fa" autocomplete="off">
+        <% if (typeof csrfToken !== 'undefined' && csrfToken) { %><%- include('partials/csrf-field') %><% } %>
         <div class="mb-4">
           <label for="code" class="form-label">Authenticator code</label>
           <div class="input-group">

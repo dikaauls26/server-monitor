@@ -70,6 +70,10 @@ function enqueue(scanner, scanPath) {
   if (!p || !p.startsWith('/')) {
     return { ok: false, error: 'Scan path must be an absolute path (e.g. /home or /var/www).' };
   }
+  const blocked = ['/etc', '/root', '/proc', '/sys', '/dev', '/boot', '/usr/bin', '/usr/sbin'];
+  if (blocked.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))) {
+    return { ok: false, error: 'Scan path is not allowed for security reasons.' };
+  }
   if (!isLinux) {
     return { ok: false, error: 'Antivirus scans are only available on Linux servers.' };
   }

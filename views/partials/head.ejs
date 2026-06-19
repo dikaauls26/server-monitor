@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
+  <% if (typeof csrfToken !== 'undefined' && csrfToken) { %>
+  <meta name="csrf-token" content="<%= csrfToken %>" />
+  <% } %>
   <title><%= typeof title !== 'undefined' ? title : 'Server Monitor' %> · Server Monitor</title>
   <link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css" />
   <link rel="stylesheet" href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css" />

@@ -28,15 +28,25 @@
     if (v >= 90) el.classList.add('bg-danger');
   }
 
+  function csrfHeaders(extra) {
+    var h = Object.assign({}, extra || {});
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.content) h['X-CSRF-Token'] = meta.content;
+    return h;
+  }
+
   function fetchJSON(url, opts) {
-    var req = Object.assign({ headers: { 'Accept': 'application/json' }, credentials: 'same-origin' }, opts || {});
+    var req = Object.assign({ headers: csrfHeaders({ 'Accept': 'application/json' }), credentials: 'same-origin' }, opts || {});
     if (req.method && req.method.toUpperCase() !== 'GET' && !req.body) {
-      req.headers = Object.assign({ 'Content-Type': 'application/json' }, req.headers || {});
+      req.headers = csrfHeaders(Object.assign({ 'Content-Type': 'application/json' }, req.headers || {}));
       req.body = '{}';
+    } else if (req.method && req.method.toUpperCase() !== 'GET') {
+      req.headers = csrfHeaders(req.headers || {});
     }
     return fetch(url, req)
       .then(function (r) {
         if (r.status === 401) { window.location.href = '/login'; throw new Error('unauthorized'); }
+        if (r.status === 403) { throw new Error('csrf'); }
         return r.text().then(function (text) {
           if (!text) return { ok: r.ok, error: r.ok ? null : ('HTTP ' + r.status) };
           try { return JSON.parse(text); }
