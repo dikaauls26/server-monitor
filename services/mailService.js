@@ -17,6 +17,8 @@ const os = require('os');
 const { run, commandExists } = require('./execHelper');
 
 const isLinux = os.platform() === 'linux';
+const isRoot = typeof process.getuid === 'function' ? process.getuid() === 0 : false;
+const SUDO = isRoot ? '' : 'sudo -n ';
 
 /**
  * Probe a TCP port locally to see if an SMTP server is listening.
@@ -134,11 +136,15 @@ async function clearDeferred() {
   if (!hasPostsuper) {
     return { ok: false, error: 'postsuper not found. Install Postfix admin tools.' };
   }
-  const res = await run('postsuper -d ALL deferred', { timeout: 15000 });
+  const res = await run(`${SUDO}postsuper -d ALL deferred`, { timeout: 15000 });
   if (!res.ok) {
-    return { ok: false, error: res.stderr.trim() || res.error || 'Failed to clear deferred queue.' };
+    const detail = (res.stderr || res.stdout || res.error || '').trim();
+    const hint = !isRoot && /password|sudo|permission denied/i.test(detail)
+      ? ' Run the app as root or grant passwordless sudo for postsuper.'
+      : '';
+    return { ok: false, error: (detail || 'Failed to clear deferred queue.') + hint };
   }
-  return { ok: true, message: 'Deferred mail queue cleared.', output: res.stdout.trim() };
+  return { ok: true, message: 'Deferred mail queue cleared.', output: (res.stdout || res.stderr || '').trim() };
 }
 
 /**
@@ -152,11 +158,15 @@ async function clearPending() {
   if (!hasPostsuper) {
     return { ok: false, error: 'postsuper not found. Install Postfix admin tools.' };
   }
-  const res = await run('postsuper -d ALL', { timeout: 15000 });
+  const res = await run(`${SUDO}postsuper -d ALL`, { timeout: 15000 });
   if (!res.ok) {
-    return { ok: false, error: res.stderr.trim() || res.error || 'Failed to clear pending queue.' };
+    const detail = (res.stderr || res.stdout || res.error || '').trim();
+    const hint = !isRoot && /password|sudo|permission denied/i.test(detail)
+      ? ' Run the app as root or grant passwordless sudo for postsuper.'
+      : '';
+    return { ok: false, error: (detail || 'Failed to clear pending queue.') + hint };
   }
-  return { ok: true, message: 'All pending mail removed from queue.', output: res.stdout.trim() };
+  return { ok: true, message: 'All pending mail removed from queue.', output: (res.stdout || res.stderr || '').trim() };
 }
 
 module.exports = { getAll, getQueue, getSmtpStatus, clearDeferred, clearPending };

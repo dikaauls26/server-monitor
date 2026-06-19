@@ -33,6 +33,7 @@ const sshService = require('./services/sshService');
 const authRoutes = require('./routes/auth');
 const pageRoutes = require('./routes/pages');
 const apiRoutes = require('./routes/api');
+const pkg = require('./package.json');
 
 // --- Ensure runtime directories exist --------------------------------------
 for (const dir of [config.storageDir, config.logsDir]) {
@@ -48,6 +49,7 @@ try {
 
 const app = express();
 app.disable('x-powered-by');
+app.locals.assetVersion = pkg.version;
 
 // Behind Nginx/PM2 we may sit behind a proxy; trust it for secure cookies & IPs.
 app.set('trust proxy', 1);

@@ -29,10 +29,19 @@
   }
 
   function fetchJSON(url, opts) {
-    return fetch(url, Object.assign({ headers: { 'Accept': 'application/json' }, credentials: 'same-origin' }, opts || {}))
+    var req = Object.assign({ headers: { 'Accept': 'application/json' }, credentials: 'same-origin' }, opts || {});
+    if (req.method && req.method.toUpperCase() !== 'GET' && !req.body) {
+      req.headers = Object.assign({ 'Content-Type': 'application/json' }, req.headers || {});
+      req.body = '{}';
+    }
+    return fetch(url, req)
       .then(function (r) {
         if (r.status === 401) { window.location.href = '/login'; throw new Error('unauthorized'); }
-        return r.json();
+        return r.text().then(function (text) {
+          if (!text) return { ok: r.ok, error: r.ok ? null : ('HTTP ' + r.status) };
+          try { return JSON.parse(text); }
+          catch (e) { return { ok: false, error: text.slice(0, 200) || ('HTTP ' + r.status) }; }
+        });
       });
   }
 
@@ -418,13 +427,17 @@
     };
     poller(refreshMail, 8000);
 
-    var btnDefer = $('#btnClearDefer');
-    var btnPending = $('#btnClearPending');
-    if (btnDefer) btnDefer.addEventListener('click', function () {
-      runMailAction('/api/mail/clear-deferred', 'Delete all DEFERRED mail from the queue?', btnDefer);
-    });
-    if (btnPending) btnPending.addEventListener('click', function () {
-      runMailAction('/api/mail/clear-pending', 'Delete ALL pending mail from the queue? This cannot be undone.', btnPending);
+    document.addEventListener('click', function (e) {
+      if (window.SM_PAGE !== 'mail') return;
+      var clearBtn = e.target.closest ? e.target.closest('[data-mail-clear]') : null;
+      if (!clearBtn) return;
+      e.preventDefault();
+      var action = clearBtn.getAttribute('data-mail-clear');
+      if (action === 'deferred') {
+        runMailAction('/api/mail/clear-deferred', 'Delete all DEFERRED mail from the queue?', clearBtn);
+      } else if (action === 'pending') {
+        runMailAction('/api/mail/clear-pending', 'Delete ALL pending mail from the queue? This cannot be undone.', clearBtn);
+      }
     });
   }
 

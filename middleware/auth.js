@@ -41,6 +41,7 @@ function injectLocals(req, res, next) {
   res.locals.currentUser = req.session && req.session.username ? { username: req.session.username } : null;
   res.locals.isAuthenticated = !!(req.session && req.session.userId);
   res.locals.activePage = '';
+  res.locals.assetVersion = res.app.locals.assetVersion || '1';
   next();
 }
 
