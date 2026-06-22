@@ -21,6 +21,42 @@
   <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i> <%= error %></div>
 <% } %>
 
+<div class="sm-card mb-3" id="config-backup">
+  <div class="sm-card-head">
+    <span><i class="bi bi-archive"></i> Configuration Backup</span>
+    <span class="text-secondary small">Snapshot / restore</span>
+  </div>
+  <p class="text-secondary small mb-3">
+    Backup penting: database (user, SSH server, Cloudflare, settings), session, dan <code>.env</code>.
+    Arsip disimpan di <code>storage/backups/</code>.
+  </p>
+  <div id="backupActionResult" class="alert d-none py-2 mb-3" role="alert"></div>
+  <div class="row g-2 align-items-end mb-3">
+    <div class="col-12 col-md-8">
+      <label class="form-label small mb-1">Catatan <span class="text-secondary">(opsional)</span></label>
+      <input type="text" class="form-control form-control-sm" id="backupNote" maxlength="200" placeholder="mis. Sebelum migrasi server" />
+    </div>
+    <div class="col-12 col-md-4">
+      <button class="btn btn-success btn-lg w-100" type="button" id="btnCreateBackup">
+        <i class="bi bi-cloud-download me-1"></i> Buat Backup Sekarang
+      </button>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table sm-table mb-0">
+      <thead>
+        <tr>
+          <th>Backup</th><th>Ukuran</th><th>Catatan</th><th class="text-end">Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="backupListBody">
+        <tr><td colspan="4" class="text-secondary text-center py-3">Memuat daftar backup…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="form-text mt-2 mb-0">Restore mengganti database &amp; <code>.env</code>. Snapshot otomatis dibuat sebelum restore. Maks. 15 arsip.</p>
+</div>
+
 <div class="row g-3">
   <div class="col-12 col-lg-6">
     <div class="sm-card h-100">
@@ -207,42 +243,6 @@
     <i class="bi bi-shield-lock me-1"></i> Encrypt all SSH credentials now
   </button>
   <p class="form-text mt-2 mb-0">Use this once after upgrade if you had servers added before encryption was enabled.</p>
-</div>
-
-<div class="sm-card mt-3">
-  <div class="sm-card-head">
-    <span><i class="bi bi-archive"></i> Configuration Backup</span>
-    <span class="text-secondary small">Snapshot / restore</span>
-  </div>
-  <p class="text-secondary small mb-3">
-    One-click backup of important configuration: SQLite database (users, SSH servers, settings, Cloudflare token),
-    active sessions, and <code>.env</code>. Stored as compressed archives in <code>storage/backups/</code>.
-  </p>
-  <div id="backupActionResult" class="alert d-none py-2 mb-3" role="alert"></div>
-  <div class="row g-2 align-items-end mb-3">
-    <div class="col-12 col-md-8">
-      <label class="form-label small mb-1">Note <span class="text-secondary">(optional)</span></label>
-      <input type="text" class="form-control form-control-sm" id="backupNote" maxlength="200" placeholder="e.g. Before server migration" />
-    </div>
-    <div class="col-12 col-md-4">
-      <button class="btn btn-primary w-100" type="button" id="btnCreateBackup">
-        <i class="bi bi-cloud-download me-1"></i> Create backup now
-      </button>
-    </div>
-  </div>
-  <div class="table-responsive">
-    <table class="table sm-table mb-0">
-      <thead>
-        <tr>
-          <th>Backup</th><th>Size</th><th>Note</th><th class="text-end">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="backupListBody">
-        <tr><td colspan="4" class="text-secondary text-center py-3">Loading backups…</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <p class="form-text mt-2 mb-0">Restore replaces the database and <code>.env</code>. A safety snapshot is created automatically before restore. Max <%= 15 %> archives kept.</p>
 </div>
 
 <div class="sm-card mt-3">
@@ -486,6 +486,10 @@
     });
 
     loadBackups();
+    if (window.location.hash === '#config-backup') {
+      var anchor = document.getElementById('config-backup');
+      if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   })();
 </script>
 <%- include('partials/layout-close') %>
