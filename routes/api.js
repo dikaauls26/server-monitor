@@ -3,6 +3,7 @@
 const express = require('express');
 const apiController = require('../controllers/apiController');
 const securityController = require('../controllers/securityController');
+const backupController = require('../controllers/backupController');
 const { requireApiAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -54,5 +55,11 @@ router.post('/cloudflare/test', apiController.cloudflareTest);
 
 router.get('/security/credentials-status', securityController.credentialsStatus);
 router.post('/security/encrypt-credentials', securityController.encryptCredentials);
+
+router.get('/backup', backupController.listBackups);
+router.post('/backup/create', backupController.createBackup);
+router.get('/backup/:id/download', backupController.downloadBackup);
+router.post('/backup/:id/restore', backupController.restoreBackup);
+router.delete('/backup/:id', backupController.deleteBackup);
 
 module.exports = router;

@@ -368,6 +368,7 @@
     }
 
     document.addEventListener('click', function (e) {
+      if (window.SM_PAGE !== 'monitoring') return;
       var ctlBtn = e.target.closest ? e.target.closest('[data-ctl]') : null;
       if (ctlBtn) {
         e.preventDefault();
@@ -716,6 +717,7 @@
   // MONITORING ALL
   // ===================================================================
   function initMonitoringAll() {
+    var root = $('#maRoot');
     var grid = $('#maGrid');
     var resultEl = $('#maActionResult');
     var serviceSel = $('#maService');
@@ -725,6 +727,54 @@
     var cronModal = cronModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(cronModalEl) : null;
     var activeMailServer = null;
     var activeCronServer = null;
+
+    function handleMaClick(e) {
+      var bulk = e.target.closest ? e.target.closest('[data-ma-bulk]') : null;
+      if (bulk) {
+        e.preventDefault();
+        runBulk(bulk.getAttribute('data-ma-bulk'), bulk);
+        return;
+      }
+      var ctl = e.target.closest ? e.target.closest('[data-ma-ctl]') : null;
+      if (ctl) {
+        e.preventDefault();
+        var act = ctl.getAttribute('data-ma-ctl');
+        var svc = ctl.getAttribute('data-ma-svc');
+        var sid = ctl.getAttribute('data-ma-server');
+        var msg = act === 'stop' ? 'Stop ' + svc + ' on this server?' : null;
+        runControl(sid, svc, act, msg, ctl);
+        return;
+      }
+      var rebootBtn = e.target.closest ? e.target.closest('[data-ma-reboot]') : null;
+      if (rebootBtn) {
+        e.preventDefault();
+        runReboot(rebootBtn.getAttribute('data-ma-reboot'), rebootBtn.getAttribute('data-ma-name') || 'server', rebootBtn);
+        return;
+      }
+      var mailBtn = e.target.closest ? e.target.closest('[data-ma-mail]') : null;
+      if (mailBtn) {
+        e.preventDefault();
+        loadMailModal(mailBtn.getAttribute('data-ma-mail'), mailBtn.getAttribute('data-ma-name') || 'server');
+        return;
+      }
+      var cronBtn = e.target.closest ? e.target.closest('[data-ma-cron]') : null;
+      if (cronBtn) {
+        e.preventDefault();
+        loadCronModal(cronBtn.getAttribute('data-ma-cron'), cronBtn.getAttribute('data-ma-name') || 'server');
+        return;
+      }
+      var mailClear = e.target.closest ? e.target.closest('[data-ma-mail-clear]') : null;
+      if (mailClear) {
+        e.preventDefault();
+        runMailClear(mailClear.getAttribute('data-ma-mail-clear'), mailClear.getAttribute('data-ma-server'), mailClear);
+        return;
+      }
+      var mailReload = e.target.closest ? e.target.closest('[data-ma-mail-reload]') : null;
+      if (mailReload) {
+        e.preventDefault();
+        if (activeMailServer) loadMailModal(activeMailServer.id, activeMailServer.name);
+      }
+    }
 
     function showResult(ok, msg) {
       if (!resultEl) return;
@@ -748,10 +798,10 @@
 
     function ctlButtons(s, serverId) {
       if (!s.controllable) return '<span class="text-secondary small">—</span>';
-      return '<div class="btn-group btn-group-sm sm-ctl">' +
-        '<button class="btn btn-outline-success" data-ma-ctl="start" data-ma-svc="' + s.key + '" data-ma-server="' + esc(String(serverId)) + '" title="Start"><i class="bi bi-play-fill"></i></button>' +
-        '<button class="btn btn-outline-primary" data-ma-ctl="restart" data-ma-svc="' + s.key + '" data-ma-server="' + esc(String(serverId)) + '" title="Restart"><i class="bi bi-arrow-clockwise"></i></button>' +
-        '<button class="btn btn-outline-danger" data-ma-ctl="stop" data-ma-svc="' + s.key + '" data-ma-server="' + esc(String(serverId)) + '" title="Stop"><i class="bi bi-stop-fill"></i></button>' +
+      return '<div class="btn-group btn-group-sm sm-ctl" role="group">' +
+        '<button type="button" class="btn btn-outline-success" data-ma-ctl="start" data-ma-svc="' + s.key + '" data-ma-server="' + esc(String(serverId)) + '" title="Start"><i class="bi bi-play-fill"></i></button>' +
+        '<button type="button" class="btn btn-outline-primary" data-ma-ctl="restart" data-ma-svc="' + s.key + '" data-ma-server="' + esc(String(serverId)) + '" title="Restart"><i class="bi bi-arrow-clockwise"></i></button>' +
+        '<button type="button" class="btn btn-outline-danger" data-ma-ctl="stop" data-ma-svc="' + s.key + '" data-ma-server="' + esc(String(serverId)) + '" title="Stop"><i class="bi bi-stop-fill"></i></button>' +
         '</div>';
     }
 
@@ -917,15 +967,20 @@
         });
     }
 
-    function runReboot(serverId, serverName) {
+    function runReboot(serverId, serverName, btn) {
       if (!confirm('Reboot "' + serverName + '" now?\n\nAll services will restart. SSH may disconnect briefly.')) return;
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
       if (resultEl) resultEl.classList.add('d-none');
       fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/reboot', { method: 'POST' })
         .then(function (res) {
           showResult(res.ok, res.message || res.error || (res.ok ? 'Reboot initiated.' : 'Reboot failed.'));
           if (res.ok) setTimeout(load, 3000);
         })
-        .catch(function () { showResult(false, 'Reboot request failed.'); });
+        .catch(function () { showResult(false, 'Reboot request failed.'); })
+        .then(function () {
+          if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        });
     }
 
     function renderServerCard(srv) {
@@ -1008,8 +1063,10 @@
       }).catch(function () { markLive(false); });
     }
 
-    function runControl(serverId, service, action, confirmMsg) {
+    function runControl(serverId, service, action, confirmMsg, btn) {
       if (confirmMsg && !confirm(confirmMsg)) return Promise.resolve();
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
       if (resultEl) resultEl.classList.add('d-none');
       return fetchJSON('/api/monitoring-all/control', {
         method: 'POST',
@@ -1019,14 +1076,20 @@
         var lines = (res.results || []).map(function (r) {
           return esc(r.name || r.serverId) + ': ' + (r.message || r.error || (r.ok ? 'OK' : 'Failed'));
         }).join('<br>');
-        showResult(res.ok, res.message || lines || 'Done.');
+        showResult(res.ok !== false, res.message || lines || 'Done.');
         return load();
-      }).catch(function () { showResult(false, 'Request failed.'); });
+      }).catch(function () {
+        showResult(false, 'Request failed.');
+      }).then(function () {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+      });
     }
 
-    function runBulk(action) {
+    function runBulk(action, btn) {
       var svc = serviceSel ? serviceSel.value : 'nginx';
       if (!confirm('Run ' + action.toUpperCase() + ' on "' + svc + '" for ALL servers?')) return;
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
       if (resultEl) resultEl.classList.add('d-none');
       fetchJSON('/api/monitoring-all/control', {
         method: 'POST',
@@ -1036,55 +1099,15 @@
         var lines = (res.results || []).map(function (r) {
           return esc(r.name || r.serverId) + ': ' + (r.message || r.error || (r.ok ? 'OK' : 'Failed'));
         }).join('<br>');
-        showResult(res.ok, res.message || lines || 'Done.');
+        showResult(res.ok !== false, res.message || lines || 'Done.');
         load();
-      }).catch(function () { showResult(false, 'Request failed.'); });
+      }).catch(function () { showResult(false, 'Request failed.'); })
+        .then(function () {
+          if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        });
     }
 
-    document.addEventListener('click', function (e) {
-      if (window.SM_PAGE !== 'monitoring-all') return;
-      var bulk = e.target.closest ? e.target.closest('[data-ma-bulk]') : null;
-      if (bulk) { e.preventDefault(); runBulk(bulk.getAttribute('data-ma-bulk')); return; }
-      var ctl = e.target.closest ? e.target.closest('[data-ma-ctl]') : null;
-      if (ctl) {
-        e.preventDefault();
-        var act = ctl.getAttribute('data-ma-ctl');
-        var svc = ctl.getAttribute('data-ma-svc');
-        var sid = ctl.getAttribute('data-ma-server');
-        var msg = act === 'stop' ? 'Stop ' + svc + ' on this server?' : null;
-        runControl(sid, svc, act, msg);
-        return;
-      }
-      var rebootBtn = e.target.closest ? e.target.closest('[data-ma-reboot]') : null;
-      if (rebootBtn) {
-        e.preventDefault();
-        runReboot(rebootBtn.getAttribute('data-ma-reboot'), rebootBtn.getAttribute('data-ma-name') || 'server');
-        return;
-      }
-      var mailBtn = e.target.closest ? e.target.closest('[data-ma-mail]') : null;
-      if (mailBtn) {
-        e.preventDefault();
-        loadMailModal(mailBtn.getAttribute('data-ma-mail'), mailBtn.getAttribute('data-ma-name') || 'server');
-        return;
-      }
-      var cronBtn = e.target.closest ? e.target.closest('[data-ma-cron]') : null;
-      if (cronBtn) {
-        e.preventDefault();
-        loadCronModal(cronBtn.getAttribute('data-ma-cron'), cronBtn.getAttribute('data-ma-name') || 'server');
-        return;
-      }
-      var mailClear = e.target.closest ? e.target.closest('[data-ma-mail-clear]') : null;
-      if (mailClear) {
-        e.preventDefault();
-        runMailClear(mailClear.getAttribute('data-ma-mail-clear'), mailClear.getAttribute('data-ma-server'), mailClear);
-        return;
-      }
-      var mailReload = e.target.closest ? e.target.closest('[data-ma-mail-reload]') : null;
-      if (mailReload) {
-        e.preventDefault();
-        if (activeMailServer) loadMailModal(activeMailServer.id, activeMailServer.name);
-      }
-    });
+    if (root) root.addEventListener('click', handleMaClick);
 
     var connectAll = $('#maConnectAll');
     var refreshBtn = $('#maRefresh');

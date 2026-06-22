@@ -14,6 +14,8 @@
   <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Cloudflare settings saved.</div>
 <% } else if (saved === 'encrypted') { %>
   <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> SSH credentials encrypted successfully.</div>
+<% } else if (saved === 'backup-restored') { %>
+  <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i> Configuration restored. If the app did not restart automatically, run <code>pm2 restart server-monitor</code>.</div>
 <% } %>
 <% if (typeof error !== 'undefined' && error) { %>
   <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i> <%= error %></div>
@@ -209,6 +211,42 @@
 
 <div class="sm-card mt-3">
   <div class="sm-card-head">
+    <span><i class="bi bi-archive"></i> Configuration Backup</span>
+    <span class="text-secondary small">Snapshot / restore</span>
+  </div>
+  <p class="text-secondary small mb-3">
+    One-click backup of important configuration: SQLite database (users, SSH servers, settings, Cloudflare token),
+    active sessions, and <code>.env</code>. Stored as compressed archives in <code>storage/backups/</code>.
+  </p>
+  <div id="backupActionResult" class="alert d-none py-2 mb-3" role="alert"></div>
+  <div class="row g-2 align-items-end mb-3">
+    <div class="col-12 col-md-8">
+      <label class="form-label small mb-1">Note <span class="text-secondary">(optional)</span></label>
+      <input type="text" class="form-control form-control-sm" id="backupNote" maxlength="200" placeholder="e.g. Before server migration" />
+    </div>
+    <div class="col-12 col-md-4">
+      <button class="btn btn-primary w-100" type="button" id="btnCreateBackup">
+        <i class="bi bi-cloud-download me-1"></i> Create backup now
+      </button>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table sm-table mb-0">
+      <thead>
+        <tr>
+          <th>Backup</th><th>Size</th><th>Note</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="backupListBody">
+        <tr><td colspan="4" class="text-secondary text-center py-3">Loading backups…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="form-text mt-2 mb-0">Restore replaces the database and <code>.env</code>. A safety snapshot is created automatically before restore. Max <%= 15 %> archives kept.</p>
+</div>
+
+<div class="sm-card mt-3">
+  <div class="sm-card-head">
     <span><i class="bi bi-shield-fill-check"></i> HTTPS / SSL</span>
     <% if (secureCookie) { %>
       <span class="sm-pill running"><span class="dot"></span>secure cookies on</span>
@@ -315,6 +353,139 @@
           btn.disabled = false;
         });
     });
+  })();
+  (function () {
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    var listBody = document.getElementById('backupListBody');
+    var resultBox = document.getElementById('backupActionResult');
+    var createBtn = document.getElementById('btnCreateBackup');
+    var noteInput = document.getElementById('backupNote');
+
+    function showBackupResult(ok, msg) {
+      if (!resultBox) return;
+      resultBox.className = 'alert py-2 mb-3 ' + (ok ? 'alert-success' : 'alert-danger');
+      resultBox.textContent = msg;
+      resultBox.classList.remove('d-none');
+    }
+
+    function fmtSize(bytes) {
+      if (!bytes) return '—';
+      var units = ['B', 'KB', 'MB', 'GB'];
+      var i = 0; var n = Number(bytes);
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return (n < 10 ? n.toFixed(1) : Math.round(n)) + ' ' + units[i];
+    }
+
+    function renderBackups(backups) {
+      if (!listBody) return;
+      if (!backups || !backups.length) {
+        listBody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center py-3">No backups yet.</td></tr>';
+        return;
+      }
+      listBody.innerHTML = backups.map(function (b) {
+        var when = b.createdAt ? new Date(b.createdAt).toLocaleString() : '—';
+        return '<tr>' +
+          '<td><div class="fw-semibold small">' + b.id + '</div><div class="text-secondary small">' + when + '</div></td>' +
+          '<td class="small">' + fmtSize(b.size) + '</td>' +
+          '<td class="small text-break">' + (b.note || '—') + '</td>' +
+          '<td class="text-end text-nowrap">' +
+            '<a class="btn btn-sm btn-outline-info me-1" href="/api/backup/' + encodeURIComponent(b.id) + '/download"><i class="bi bi-download"></i></a>' +
+            '<button type="button" class="btn btn-sm btn-outline-warning me-1" data-backup-restore="' + b.id + '" title="Restore"><i class="bi bi-arrow-counterclockwise"></i></button>' +
+            '<button type="button" class="btn btn-sm btn-outline-danger" data-backup-delete="' + b.id + '" title="Delete"><i class="bi bi-trash"></i></button>' +
+          '</td></tr>';
+      }).join('');
+    }
+
+    function loadBackups() {
+      return fetch('/api/backup', {
+        headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf },
+        credentials: 'same-origin'
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        if (res.ok) renderBackups(res.backups || []);
+        else if (listBody) listBody.innerHTML = '<tr><td colspan="4" class="text-danger text-center py-3">' + (res.error || 'Failed to load backups.') + '</td></tr>';
+      }).catch(function () {
+        if (listBody) listBody.innerHTML = '<tr><td colspan="4" class="text-danger text-center py-3">Request failed.</td></tr>';
+      });
+    }
+
+    if (createBtn) createBtn.addEventListener('click', function () {
+      createBtn.disabled = true;
+      fetch('/api/backup/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-Token': csrf
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ note: noteInput ? noteInput.value : '' })
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        showBackupResult(res.ok, res.message || res.error || (res.ok ? 'Backup created.' : 'Failed.'));
+        if (res.ok) {
+          if (noteInput) noteInput.value = '';
+          loadBackups();
+        }
+        createBtn.disabled = false;
+      }).catch(function () {
+        showBackupResult(false, 'Request failed.');
+        createBtn.disabled = false;
+      });
+    });
+
+    if (listBody) listBody.addEventListener('click', function (e) {
+      var delBtn = e.target.closest ? e.target.closest('[data-backup-delete]') : null;
+      if (delBtn) {
+        e.preventDefault();
+        var delId = delBtn.getAttribute('data-backup-delete');
+        if (!confirm('Delete backup "' + delId + '"?')) return;
+        delBtn.disabled = true;
+        fetch('/api/backup/' + encodeURIComponent(delId), {
+          method: 'DELETE',
+          headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf },
+          credentials: 'same-origin'
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          showBackupResult(res.ok, res.message || res.error || 'Done.');
+          if (res.ok) loadBackups(); else delBtn.disabled = false;
+        }).catch(function () {
+          showBackupResult(false, 'Request failed.');
+          delBtn.disabled = false;
+        });
+        return;
+      }
+      var restoreBtn = e.target.closest ? e.target.closest('[data-backup-restore]') : null;
+      if (restoreBtn) {
+        e.preventDefault();
+        var restoreId = restoreBtn.getAttribute('data-backup-restore');
+        var typed = prompt('RESTORE will replace database and .env.\n\nType this backup id to confirm:\n' + restoreId);
+        if (typed !== restoreId) {
+          if (typed !== null) showBackupResult(false, 'Restore cancelled — backup id did not match.');
+          return;
+        }
+        restoreBtn.disabled = true;
+        fetch('/api/backup/' + encodeURIComponent(restoreId) + '/restore', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrf
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ confirm: restoreId })
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          showBackupResult(res.ok, res.message || res.error || 'Done.');
+          if (res.ok) {
+            setTimeout(function () { window.location.href = '/settings?saved=backup-restored'; }, 1200);
+          } else {
+            restoreBtn.disabled = false;
+          }
+        }).catch(function () {
+          showBackupResult(false, 'Request failed.');
+          restoreBtn.disabled = false;
+        });
+      }
+    });
+
+    loadBackups();
   })();
 </script>
 <%- include('partials/layout-close') %>

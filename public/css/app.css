@@ -145,6 +145,7 @@ body.sm-body {
 /* ---------- Monitoring All server cards ---------- */
 .sm-server-card { border: 1px solid var(--sm-border); }
 .sm-server-card h6 { font-size: 1rem; font-weight: 600; }
+.sm-ctl .btn { pointer-events: auto; position: relative; z-index: 1; }
 
 /* ---------- Network ---------- */
 .sm-net { display: flex; flex-direction: column; gap: .5rem; }

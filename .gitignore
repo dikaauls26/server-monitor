@@ -12,6 +12,7 @@ storage/*.db-wal
 storage/*.sqlite
 storage/sessions.db
 storage/sessions.sqlite
+storage/backups/
 
 # Application logs
 logs/*.log
