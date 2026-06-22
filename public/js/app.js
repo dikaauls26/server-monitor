@@ -724,12 +724,15 @@
     var mailModalEl = $('#maModalMail');
     var cronModalEl = $('#maModalCron');
     var imagesModalEl = $('#maModalImages');
+    var shellModalEl = $('#maModalShell');
     var mailModal = mailModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(mailModalEl) : null;
     var cronModal = cronModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(cronModalEl) : null;
     var imagesModal = imagesModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(imagesModalEl) : null;
+    var shellModal = shellModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(shellModalEl) : null;
     var activeMailServer = null;
     var activeCronServer = null;
     var activeImageServer = null;
+    var activeShellServer = null;
     var backupQueueBody = $('#maBackupQueueBody');
     var backupQueueBadge = $('#maBackupQueueBadge');
     var backupQueuePoller = null;
@@ -779,6 +782,12 @@
       if (imagesBtn) {
         e.preventDefault();
         loadImagesModal(imagesBtn.getAttribute('data-ma-images'), imagesBtn.getAttribute('data-ma-name') || 'server');
+        return;
+      }
+      var shellBtn = e.target.closest ? e.target.closest('[data-ma-shell]') : null;
+      if (shellBtn) {
+        e.preventDefault();
+        openShellModal(shellBtn.getAttribute('data-ma-shell'), shellBtn.getAttribute('data-ma-name') || 'server');
         return;
       }
       var mailClear = e.target.closest ? e.target.closest('[data-ma-mail-clear]') : null;
@@ -837,6 +846,7 @@
       var sid = esc(String(srv.id));
       var name = esc(srv.name || sid);
       return '<div class="d-flex flex-wrap gap-1 mt-2">' +
+        '<button type="button" class="btn btn-sm btn-success" data-ma-shell="' + sid + '" data-ma-name="' + name + '" title="Jalankan command SSH"><i class="bi bi-terminal"></i> Terminal</button>' +
         '<button type="button" class="btn btn-sm btn-outline-success" data-ma-backup="' + sid + '" data-ma-name="' + name + '" title="Backup ke server monitor pusat"><i class="bi bi-archive"></i> Backup</button>' +
         '<button type="button" class="btn btn-sm btn-outline-warning" data-ma-images="' + sid + '" data-ma-name="' + name + '" title="Image tersimpan di server pusat"><i class="bi bi-hdd"></i> Images</button>' +
         '<button type="button" class="btn btn-sm btn-outline-danger" data-ma-reboot="' + sid + '" data-ma-name="' + name + '" title="Reboot server"><i class="bi bi-power"></i> Reboot</button>' +
@@ -1105,7 +1115,7 @@
       if (!activeImageServer) return;
       if (!confirm('Hapus image dari server pusat?\n\n' + filename)) return;
       var original = btn ? btn.innerHTML : '';
-      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; };
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
       fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(activeImageServer.id) + '/backups/' + encodeURIComponent(filename), {
         method: 'DELETE'
       }).then(function (res) {
@@ -1115,6 +1125,52 @@
         .then(function () {
           if (btn) { btn.disabled = false; btn.innerHTML = original; }
         });
+    }
+
+    function openShellModal(serverId, serverName) {
+      activeShellServer = { id: serverId, name: serverName };
+      var title = $('#maModalShellLabel');
+      var out = $('#maShellOutput');
+      var input = $('#maShellInput');
+      if (title) title.innerHTML = '<i class="bi bi-terminal me-1"></i> Terminal — ' + esc(serverName);
+      if (out) out.textContent = '$ Connected to ' + serverName + ' (' + serverId + ')\n$ Type a command below.\n';
+      if (input) { input.value = ''; input.focus(); }
+      if (shellModal) shellModal.show();
+    }
+
+    function appendShellOutput(block) {
+      var out = $('#maShellOutput');
+      if (!out) return;
+      out.textContent += block;
+      out.scrollTop = out.scrollHeight;
+    }
+
+    function runShellCommand(command) {
+      if (!activeShellServer) return Promise.resolve();
+      var cmd = String(command || '').trim();
+      if (!cmd) return Promise.resolve();
+      var runBtn = $('#maShellRun');
+      var input = $('#maShellInput');
+      if (runBtn) runBtn.disabled = true;
+      appendShellOutput('\n$ ' + cmd + '\n');
+      return fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(activeShellServer.id) + '/exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmd, timeoutMs: 120000 })
+      }).then(function (res) {
+        if (res.error && !res.stdout && !res.stderr) {
+          appendShellOutput('[error] ' + res.error + '\n');
+        } else {
+          if (res.stdout) appendShellOutput(res.stdout + (res.stdout.endsWith('\n') ? '' : '\n'));
+          if (res.stderr) appendShellOutput('[stderr]\n' + res.stderr + (res.stderr.endsWith('\n') ? '' : '\n'));
+          appendShellOutput('[exit ' + (res.exitCode != null ? res.exitCode : '?') + ' · ' + (res.durationMs || 0) + 'ms]\n');
+        }
+      }).catch(function () {
+        appendShellOutput('[error] Request failed.\n');
+      }).then(function () {
+        if (runBtn) runBtn.disabled = false;
+        if (input) input.focus();
+      });
     }
 
     function runReboot(serverId, serverName, btn) {
@@ -1281,6 +1337,30 @@
       if (delBtn) {
         e.preventDefault();
         runImageDelete(delBtn.getAttribute('data-ma-image-delete'), delBtn);
+      }
+    });
+
+    var shellForm = $('#maShellForm');
+    var shellInput = $('#maShellInput');
+    var shellQuick = $('#maShellQuick');
+    var shellClear = $('#maShellClear');
+    if (shellForm) shellForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var cmd = shellInput ? shellInput.value : '';
+      if (shellInput) shellInput.value = '';
+      runShellCommand(cmd);
+    });
+    if (shellQuick) shellQuick.addEventListener('change', function () {
+      if (!shellQuick.value) return;
+      var cmd = shellQuick.value;
+      shellQuick.value = '';
+      if (shellInput) shellInput.value = cmd;
+      runShellCommand(cmd);
+    });
+    if (shellClear) shellClear.addEventListener('click', function () {
+      var out = $('#maShellOutput');
+      if (out && activeShellServer) {
+        out.textContent = '$ Connected to ' + activeShellServer.name + ' (' + activeShellServer.id + ')\n';
       }
     });
 

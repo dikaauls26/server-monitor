@@ -15,6 +15,7 @@ const remoteMailService = require('./remoteMailService');
 const mailService = require('./mailService');
 const cronService = require('./cronService');
 const sshService = require('./sshService');
+const serverShellService = require('./serverShellService');
 
 function resolveTarget(serverId) {
   const raw = String(serverId);
@@ -203,6 +204,10 @@ async function connectAll() {
   return { ok: true, results };
 }
 
+async function execShell(serverId, command, timeoutMs) {
+  return serverShellService.execCommand(serverId, command, timeoutMs);
+}
+
 module.exports = {
   getAll,
   getCron,
@@ -212,5 +217,6 @@ module.exports = {
   reboot,
   controlBulk,
   connectAll,
+  execShell,
   resolveTarget,
 };

@@ -336,6 +336,16 @@ async function monitoringAllServerReboot(req, res, next) {
   }
 }
 
+async function monitoringAllServerExec(req, res, next) {
+  try {
+    const { command, timeoutMs } = req.body || {};
+    const result = await monitoringAllService.execShell(req.params.serverId, command, timeoutMs);
+    res.status(result.ok || result.stdout || result.stderr ? 200 : 400).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function domainsList(req, res, next) {
   try {
     const checkHttp = req.query.check !== '0';
@@ -424,6 +434,7 @@ module.exports = {
   monitoringAllServerMailClearDeferred,
   monitoringAllServerMailClearPending,
   monitoringAllServerReboot,
+  monitoringAllServerExec,
   domainsList,
   domainsDelete,
   domainsDeleteQueue,

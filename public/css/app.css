@@ -200,6 +200,8 @@ body.sm-body {
 .ma-stat-label { font-size: .75rem; color: var(--sm-muted); text-transform: uppercase; letter-spacing: .03em; }
 .ma-stat-val { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
 .ma-raw { max-height: 280px; font-size: .78rem; }
+.ma-shell-out { min-height: 220px; max-height: 50vh; font-size: .82rem; margin: 0; }
+.font-monospace { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 991.98px) {

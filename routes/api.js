@@ -43,6 +43,7 @@ router.get('/monitoring-all/server/:serverId/mail', apiController.monitoringAllS
 router.post('/monitoring-all/server/:serverId/mail/clear-deferred', apiController.monitoringAllServerMailClearDeferred);
 router.post('/monitoring-all/server/:serverId/mail/clear-pending', apiController.monitoringAllServerMailClearPending);
 router.post('/monitoring-all/server/:serverId/reboot', apiController.monitoringAllServerReboot);
+router.post('/monitoring-all/server/:serverId/exec', apiController.monitoringAllServerExec);
 router.post('/monitoring-all/control', apiController.monitoringAllControl);
 router.post('/monitoring-all/connect-all', apiController.monitoringAllConnect);
 
