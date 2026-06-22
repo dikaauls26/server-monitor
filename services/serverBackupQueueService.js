@@ -62,7 +62,7 @@ function enqueue(serverId, jobType, { filename = '', note = '' } = {}) {
   startWorker();
   return {
     ok: true,
-    message: type === 'restore' ? 'Restore queued.' : 'Backup queued — image will be saved to central server.',
+    message: type === 'restore' ? 'Restore queued.' : 'Backup queued — runs in background on server (websites stay online).',
     job: rowToJob(db.prepare('SELECT * FROM server_backup_jobs WHERE id = ?').get(info.lastInsertRowid)),
     queue: getQueueStatus(),
   };
@@ -102,7 +102,9 @@ async function processNextJob() {
     if (job.job_type === 'restore') {
       result = await serverBackupService.runRestore(job.server_id, job.filename);
     } else {
-      result = await serverBackupService.runBackup(job.server_id, job.note);
+      result = await serverBackupService.runBackup(job.server_id, job.note, (msg) => {
+        db.prepare('UPDATE server_backup_jobs SET message = ? WHERE id = ?').run(msg, job.id);
+      });
     }
   } catch (err) {
     result = { ok: false, error: err.message };
@@ -126,7 +128,10 @@ async function processNextJob() {
 }
 
 function startWorker() {
-  if (workerTimer) return;
+  if (workerTimer) {
+    process.nextTick(() => processNextJob().catch(() => {}));
+    return;
+  }
   workerTimer = setInterval(async () => {
     try {
       await processNextJob();
@@ -137,6 +142,7 @@ function startWorker() {
     }
   }, 3000);
   workerTimer.unref();
+  processNextJob().catch(() => {});
 }
 
 function resumeWorker() {

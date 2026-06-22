@@ -1032,11 +1032,11 @@
 
     function startBackupQueuePoll() {
       if (backupQueuePoller) return;
-      backupQueuePoller = setInterval(loadBackupQueue, 4000);
+      backupQueuePoller = setInterval(loadBackupQueue, 2000);
     }
 
     function runBackup(serverId, serverName, btn) {
-      if (!confirm('Backup server "' + serverName + '"?\n\nImage akan dibuat di server target lalu disimpan ke server monitor pusat.\nProses bisa memakan waktu lama.')) return;
+      if (!confirm('Backup server "' + serverName + '"?\n\nBerjalan di BACKGROUND — website tetap online.\nImage disimpan ke server monitor pusat.\nProses bisa lama (antrian di bawah).')) return;
       var original = btn ? btn.innerHTML : '';
       if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
       fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/backup', {

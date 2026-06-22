@@ -20,13 +20,35 @@ const isLinux = os.platform() === 'linux';
 const SAFE_NAME_RE = /^[a-zA-Z0-9._-]+$/;
 
 const CREATE_BACKUP_SCRIPT = remoteBash(`
-set -e
 TS=$(date +%Y%m%d-%H%M%S)
 TAG="sm-server-backup-$TS"
-WORKDIR="/tmp/$TAG"
+STATUS="/tmp/$TAG.status.json"
 ARCHIVE="/tmp/$TAG.tar.gz"
-mkdir -p "$WORKDIR/mysql" "$WORKDIR/cfg" "$WORKDIR/sites" "$WORKDIR/ssl"
+WORK="/tmp/$TAG.work.sh"
 
+cat > "$WORK" << 'WORKER'
+#!/bin/bash
+set -e
+TAG="$1"
+STATUS="$2"
+ARCHIVE="$3"
+WORKDIR="/tmp/$TAG"
+ION="nice -n 19 ionice -c2 -n7"
+
+write_status() {
+  printf '{"state":"%s","phase":"%s","tag":"%s"}\n' "$1" "$2" "$TAG" > "$STATUS"
+}
+
+fail() {
+  err=$(printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
+  printf '{"state":"failed","error":%s,"tag":"%s"}\n' "$err" "$TAG" > "$STATUS"
+  exit 1
+}
+
+trap 'fail "Backup interrupted"' ERR
+write_status running mysql
+
+mkdir -p "$WORKDIR/mysql" "$WORKDIR/cfg" "$WORKDIR/sites" "$WORKDIR/ssl"
 PW=""
 if [ -f /etc/cyberpanel/mysqlPassword ]; then
   PW=$(cat /etc/cyberpanel/mysqlPassword 2>/dev/null | tr -d '\\r\\n')
@@ -35,7 +57,7 @@ fi
 dump_db() {
   db="$1"
   [ -n "$db" ] || return 0
-  mysql -u root -p"$PW" "$db" > "$WORKDIR/mysql/\${db}.sql" 2>/dev/null || true
+  $ION mysqldump -u root -p"$PW" --single-transaction --quick --routines --triggers --events "$db" > "$WORKDIR/mysql/\${db}.sql" 2>/dev/null || true
 }
 
 if [ -n "$PW" ]; then
@@ -45,25 +67,30 @@ if [ -n "$PW" ]; then
   done
 fi
 
+write_status running files
 if [ -d /etc/cyberpanel ]; then
-  cp -a /etc/cyberpanel "$WORKDIR/cfg/cyberpanel" 2>/dev/null || true
+  $ION cp -a /etc/cyberpanel "$WORKDIR/cfg/cyberpanel" 2>/dev/null || true
 fi
 if [ -d /usr/local/lsws/conf ]; then
-  cp -a /usr/local/lsws/conf "$WORKDIR/cfg/lsws-conf" 2>/dev/null || true
+  $ION cp -a /usr/local/lsws/conf "$WORKDIR/cfg/lsws-conf" 2>/dev/null || true
 fi
 if [ -d /etc/letsencrypt ]; then
-  cp -a /etc/letsencrypt "$WORKDIR/ssl/letsencrypt" 2>/dev/null || true
+  $ION cp -a /etc/letsencrypt "$WORKDIR/ssl/letsencrypt" 2>/dev/null || true
 fi
-
 if [ -d /home ]; then
   for site in /home/*/public_html; do
     [ -d "$site" ] || continue
     dom=$(basename "$(dirname "$site")")
     mkdir -p "$WORKDIR/sites/$dom"
-    cp -a "$site" "$WORKDIR/sites/$dom/public_html" 2>/dev/null || true
+    if command -v rsync >/dev/null 2>&1; then
+      $ION rsync -a "$site/" "$WORKDIR/sites/$dom/public_html/" 2>/dev/null || true
+    else
+      $ION cp -a "$site" "$WORKDIR/sites/$dom/public_html" 2>/dev/null || true
+    fi
   done
 fi
 
+write_status running compress
 HOST=$(hostname 2>/dev/null || echo unknown)
 python3 - << PY
 import json, datetime
@@ -71,18 +98,45 @@ open("$WORKDIR/manifest.json", "w").write(json.dumps({
   "version": 1,
   "hostname": "$HOST",
   "created": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-  "tag": "$TAG"
+  "tag": "$TAG",
+  "mode": "background-low-priority"
 }))
 PY
 
-tar -czf "$ARCHIVE" -C /tmp "$TAG"
+$ION tar -czf "$ARCHIVE" -C /tmp "$TAG"
 BYTES=$(stat -c%s "$ARCHIVE" 2>/dev/null || wc -c < "$ARCHIVE")
 rm -rf "$WORKDIR"
+printf '{"state":"done","ok":true,"path":"%s","bytes":%s,"tag":"%s"}\n' "$ARCHIVE" "$BYTES" "$TAG" > "$STATUS"
+WORKER
+
+chmod +x "$WORK"
+nohup "$WORK" "$TAG" "$STATUS" "$ARCHIVE" > "/tmp/$TAG.log" 2>&1 &
+
 python3 - << PY
 import json
-print(json.dumps({"ok": True, "path": "$ARCHIVE", "bytes": int("$BYTES" or 0), "tag": "$TAG"}))
+print(json.dumps({"ok": True, "started": True, "tag": "$TAG", "statusFile": "$STATUS"}))
 PY
 `);
+
+function pollBackupStatusScript(tag) {
+  if (!/^sm-server-backup-\d{8}-\d{6}$/.test(tag)) {
+    throw new Error('Invalid backup tag.');
+  }
+  return remoteBash(`
+if [ ! -f /tmp/${tag}.status.json ]; then
+  python3 -c "import json; print(json.dumps({'state':'pending','phase':'starting','tag':'${tag}'}))"
+else
+  cat /tmp/${tag}.status.json
+fi
+`);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const POLL_INTERVAL_MS = 15000;
+const MAX_BACKUP_WAIT_MS = 7200000;
 
 const RESTORE_BACKUP_SCRIPT = (remoteArchive) => remoteBash(`
 set -e
@@ -232,31 +286,71 @@ function deleteImage(serverId, filename) {
   return { ok: true, message: 'Backup image deleted from central storage.' };
 }
 
-async function createRemoteArchive(serverId) {
-  const res = await sshService.exec(serverId, CREATE_BACKUP_SCRIPT, 3600000);
+async function launchBackgroundBackup(execFn) {
+  const res = await execFn(CREATE_BACKUP_SCRIPT, 120000);
   const parsed = parseJsonLine(res.stdout || res.stderr);
-  if (!parsed || !parsed.ok || !parsed.path) {
+  if (!parsed || !parsed.ok || !parsed.tag) {
     return {
       ok: false,
-      error: (parsed && parsed.error) || (res.stderr || res.stdout || 'Backup script failed.').trim().slice(0, 300),
+      error: (parsed && parsed.error) || (res.stderr || res.stdout || 'Failed to start backup.').trim().slice(0, 300),
     };
   }
-  return { ok: true, remotePath: parsed.path, tag: parsed.tag, bytes: parsed.bytes || 0 };
+  return { ok: true, tag: parsed.tag };
 }
 
-async function createLocalArchive() {
+async function pollBackupStatus(execFn, tag) {
+  const res = await execFn(pollBackupStatusScript(tag), 60000);
+  return parseJsonLine(res.stdout || res.stderr) || { state: 'pending' };
+}
+
+async function waitForBackupArchive(execFn, tag, onProgress) {
+  const started = Date.now();
+  while (Date.now() - started < MAX_BACKUP_WAIT_MS) {
+    const status = await pollBackupStatus(execFn, tag);
+    if (status.state === 'failed') {
+      return { ok: false, error: status.error || 'Backup failed on server.' };
+    }
+    if (status.state === 'done' && status.path) {
+      return { ok: true, remotePath: status.path, tag: status.tag || tag, bytes: status.bytes || 0 };
+    }
+    const phase = status.phase || status.state || 'running';
+    if (onProgress) onProgress(phase);
+    await sleep(POLL_INTERVAL_MS);
+  }
+  return { ok: false, error: 'Backup timed out waiting for server to finish.' };
+}
+
+async function cleanupRemoteBackup(execFn, tag) {
+  await execFn(`rm -f /tmp/${tag}.status.json /tmp/${tag}.tar.gz /tmp/${tag}.log 2>/dev/null; rm -rf /tmp/${tag} /tmp/${tag}.work.sh 2>/dev/null`, 30000);
+}
+
+async function createRemoteArchive(serverId, onProgress) {
+  const execFn = (cmd, timeout) => sshService.exec(serverId, cmd, timeout);
+  const launched = await launchBackgroundBackup(execFn);
+  if (!launched.ok) return launched;
+  if (onProgress) onProgress('started');
+  const finished = await waitForBackupArchive(execFn, launched.tag, onProgress);
+  if (!finished.ok) {
+    await cleanupRemoteBackup(execFn, launched.tag);
+    return finished;
+  }
+  return finished;
+}
+
+async function createLocalArchive(onProgress) {
   if (!isLinux) {
     return { ok: false, error: 'Local server backup requires Linux with CyberPanel/MySQL.' };
   }
-  const res = await run(CREATE_BACKUP_SCRIPT, { timeout: 3600000 });
-  const parsed = parseJsonLine(res.stdout || res.stderr);
-  if (!parsed || !parsed.ok || !parsed.path) {
-    return {
-      ok: false,
-      error: (parsed && parsed.error) || (res.stderr || res.stdout || 'Backup script failed.').trim().slice(0, 300),
-    };
+  const execFn = (cmd, timeout) => run(cmd, { timeout });
+  const launched = await launchBackgroundBackup(execFn);
+  if (!launched.ok) return launched;
+  if (onProgress) onProgress('started');
+  const finished = await waitForBackupArchive(execFn, launched.tag, onProgress);
+  if (!finished.ok) {
+    await cleanupRemoteBackup(execFn, launched.tag);
+    return finished;
   }
-  return { ok: true, remotePath: parsed.path, tag: parsed.tag, bytes: parsed.bytes || 0, local: true };
+  return { ...finished, local: true };
 }
 
 async function pullArchiveToCentral(target, remotePath, tag) {
@@ -282,29 +376,47 @@ async function pullArchiveToCentral(target, remotePath, tag) {
   return { ok: true, filename, size, path: dest };
 }
 
-async function runBackup(serverId, note = '') {
+async function runBackup(serverId, note = '', onProgress) {
   const target = resolveTarget(serverId || 'local');
   if (!target) return { ok: false, error: 'Invalid server id.' };
 
+  const phaseLabel = (phase) => {
+    const map = {
+      started: 'Background backup started (low priority)…',
+      mysql: 'Dumping databases (no table lock)…',
+      files: 'Copying website files…',
+      compress: 'Compressing archive…',
+      pending: 'Waiting for backup worker…',
+      starting: 'Starting backup worker…',
+      running: 'Backup running in background…',
+    };
+    return map[phase] || `Backup: ${phase}…`;
+  };
+
+  const progress = (phase) => {
+    if (onProgress) onProgress(phaseLabel(phase));
+  };
+
   let archive;
   if (target.local) {
-    archive = await createLocalArchive();
+    archive = await createLocalArchive(progress);
   } else {
     const conn = sshService.getStatus(target.remoteId);
     if (!conn.connected) {
       const connect = await sshService.connectServer(target.remoteId);
       if (!connect.ok) return { ok: false, error: connect.error || 'Not connected' };
     }
-    archive = await createRemoteArchive(target.remoteId);
+    archive = await createRemoteArchive(target.remoteId, progress);
   }
   if (!archive.ok) return archive;
 
+  if (onProgress) onProgress('Downloading image to central server…');
   const saved = await pullArchiveToCentral(target, archive.remotePath, archive.tag);
   if (!saved.ok) return saved;
 
   return {
     ok: true,
-    message: `Server image saved to central storage (${formatBytes(saved.size)}).`,
+    message: `Server image saved to central storage (${formatBytes(saved.size)}). Websites stayed online.`,
     image: {
       serverId: target.local ? 'local' : String(target.remoteId),
       serverName: target.name,
