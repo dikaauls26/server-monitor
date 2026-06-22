@@ -102,6 +102,12 @@ function exec(serverId, command, timeout = 10000) {
       return resolve({ ok: false, stdout: '', stderr: 'Not connected', code: 1 });
     }
 
+    runExec(entry.client, command, timeout).then(resolve);
+  });
+}
+
+function runExec(client, command, timeout = 10000) {
+  return new Promise((resolve) => {
     let finished = false;
     const timer = setTimeout(() => {
       if (finished) return;
@@ -109,7 +115,7 @@ function exec(serverId, command, timeout = 10000) {
       resolve({ ok: false, stdout: '', stderr: 'Command timeout', code: 124 });
     }, timeout);
 
-    entry.client.exec(command, (err, stream) => {
+    client.exec(command, (err, stream) => {
       if (err) {
         clearTimeout(timer);
         finished = true;
@@ -130,6 +136,60 @@ function exec(serverId, command, timeout = 10000) {
   });
 }
 
+async function ensureClient(serverId) {
+  let entry = pool.get(serverId);
+  if (!entry || !entry.connected) {
+    const conn = await connectServer(serverId);
+    if (!conn.ok) return { ok: false, error: conn.error || 'Connection failed' };
+    entry = pool.get(serverId);
+  }
+  if (!entry || !entry.connected) return { ok: false, error: 'Not connected' };
+  return { ok: true, client: entry.client };
+}
+
+function sftpTransfer(serverId, fn, timeout = 600000) {
+  return new Promise(async (resolve) => {
+    const ready = await ensureClient(serverId);
+    if (!ready.ok) {
+      return resolve({ ok: false, error: ready.error || 'Not connected' });
+    }
+
+    let finished = false;
+    const timer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      resolve({ ok: false, error: 'SFTP timeout' });
+    }, timeout);
+
+    ready.client.sftp((err, sftp) => {
+      if (err) {
+        clearTimeout(timer);
+        finished = true;
+        return resolve({ ok: false, error: err.message });
+      }
+      fn(sftp, (transferErr) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        if (transferErr) return resolve({ ok: false, error: transferErr.message || String(transferErr) });
+        resolve({ ok: true });
+      });
+    });
+  });
+}
+
+function downloadFile(serverId, remotePath, localPath, timeout = 600000) {
+  return sftpTransfer(serverId, (sftp, cb) => {
+    sftp.fastGet(remotePath, localPath, cb);
+  }, timeout);
+}
+
+function uploadFile(serverId, localPath, remotePath, timeout = 600000) {
+  return sftpTransfer(serverId, (sftp, cb) => {
+    sftp.fastPut(localPath, remotePath, cb);
+  }, timeout);
+}
+
 async function autoConnectAll() {
   const servers = serverRepository.listAutoConnect();
   const results = await Promise.all(servers.map((s) => connectServer(s.id)));
@@ -146,6 +206,8 @@ module.exports = {
   connectServer,
   disconnectServer,
   exec,
+  downloadFile,
+  uploadFile,
   getStatus,
   listStatuses,
   autoConnectAll,

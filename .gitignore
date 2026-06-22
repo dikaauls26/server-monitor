@@ -13,6 +13,7 @@ storage/*.sqlite
 storage/sessions.db
 storage/sessions.sqlite
 storage/backups/
+storage/server-backups/
 
 # Application logs
 logs/*.log

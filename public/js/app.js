@@ -723,10 +723,16 @@
     var serviceSel = $('#maService');
     var mailModalEl = $('#maModalMail');
     var cronModalEl = $('#maModalCron');
+    var imagesModalEl = $('#maModalImages');
     var mailModal = mailModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(mailModalEl) : null;
     var cronModal = cronModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(cronModalEl) : null;
+    var imagesModal = imagesModalEl && window.bootstrap ? bootstrap.Modal.getOrCreateInstance(imagesModalEl) : null;
     var activeMailServer = null;
     var activeCronServer = null;
+    var activeImageServer = null;
+    var backupQueueBody = $('#maBackupQueueBody');
+    var backupQueueBadge = $('#maBackupQueueBadge');
+    var backupQueuePoller = null;
 
     function handleMaClick(e) {
       var bulk = e.target.closest ? e.target.closest('[data-ma-bulk]') : null;
@@ -761,6 +767,18 @@
       if (cronBtn) {
         e.preventDefault();
         loadCronModal(cronBtn.getAttribute('data-ma-cron'), cronBtn.getAttribute('data-ma-name') || 'server');
+        return;
+      }
+      var backupBtn = e.target.closest ? e.target.closest('[data-ma-backup]') : null;
+      if (backupBtn) {
+        e.preventDefault();
+        runBackup(backupBtn.getAttribute('data-ma-backup'), backupBtn.getAttribute('data-ma-name') || 'server', backupBtn);
+        return;
+      }
+      var imagesBtn = e.target.closest ? e.target.closest('[data-ma-images]') : null;
+      if (imagesBtn) {
+        e.preventDefault();
+        loadImagesModal(imagesBtn.getAttribute('data-ma-images'), imagesBtn.getAttribute('data-ma-name') || 'server');
         return;
       }
       var mailClear = e.target.closest ? e.target.closest('[data-ma-mail-clear]') : null;
@@ -819,8 +837,10 @@
       var sid = esc(String(srv.id));
       var name = esc(srv.name || sid);
       return '<div class="d-flex flex-wrap gap-1 mt-2">' +
+        '<button type="button" class="btn btn-sm btn-outline-success" data-ma-backup="' + sid + '" data-ma-name="' + name + '" title="Backup ke server monitor pusat"><i class="bi bi-archive"></i> Backup</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-warning" data-ma-images="' + sid + '" data-ma-name="' + name + '" title="Image tersimpan di server pusat"><i class="bi bi-hdd"></i> Images</button>' +
         '<button type="button" class="btn btn-sm btn-outline-danger" data-ma-reboot="' + sid + '" data-ma-name="' + name + '" title="Reboot server"><i class="bi bi-power"></i> Reboot</button>' +
-        '<button type="button" class="btn btn-sm btn-outline-info" data-ma-mail="' + sid + '" data-ma-name="' + name + '" title="View mail queue"><i class="bi bi-envelope"></i> Mail Queue</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-info" data-ma-mail="' + sid + '" data-ma-name="' + name + '" title="View mail queue"><i class="bi bi-envelope"></i> Mail</button>' +
         '<button type="button" class="btn btn-sm btn-outline-secondary" data-ma-cron="' + sid + '" data-ma-name="' + name + '" title="View cron jobs"><i class="bi bi-calendar-check"></i> Cron</button>' +
         '</div>';
     }
@@ -954,7 +974,7 @@
         : 'Delete ALL pending mail from the queue? This cannot be undone.';
       if (!confirm(msg)) return;
       var original = btn ? btn.innerHTML : '';
-      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; };
       var path = action === 'deferred' ? 'clear-deferred' : 'clear-pending';
       fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/mail/' + path, { method: 'POST' })
         .then(function (res) {
@@ -962,6 +982,136 @@
           if (res.ok && activeMailServer) loadMailModal(activeMailServer.id, activeMailServer.name);
         })
         .catch(function () { showResult(false, 'Mail action failed.'); })
+        .then(function () {
+          if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        });
+    }
+
+    function backupQueueStatusPill(st) {
+      var s = String(st || 'queued');
+      return '<span class="sm-pill ' + esc(s === 'done' ? 'running' : (s === 'failed' ? 'stopped' : 'idle')) +
+        '"><span class="dot"></span>' + esc(s) + '</span>';
+    }
+
+    function renderBackupQueue(d) {
+      if (backupQueueBadge) {
+        backupQueueBadge.textContent = (d.queued || 0) + ' queued · ' + (d.running || 0) + ' running';
+      }
+      if (!backupQueueBody) return;
+      if (!d.jobs || !d.jobs.length) {
+        backupQueueBody.innerHTML = '<tr><td colspan="5" class="text-secondary text-center py-3">No backup jobs yet.</td></tr>';
+        return;
+      }
+      backupQueueBody.innerHTML = d.jobs.map(function (j) {
+        var result;
+        if (j.status === 'running') result = 'Processing…';
+        else if (j.status === 'queued') result = 'Waiting…';
+        else if (j.status === 'failed') result = esc(j.error || j.message || 'Failed');
+        else result = esc(j.message || j.filename || 'Done');
+        return '<tr><td class="small text-secondary">' + j.id + '</td><td>' + esc(j.serverName || j.serverId) +
+          '</td><td class="small">' + esc(j.jobType || 'backup') + '</td><td>' + backupQueueStatusPill(j.status) +
+          '</td><td class="small text-break">' + result + '</td></tr>';
+      }).join('');
+    }
+
+    function loadBackupQueue() {
+      return fetchJSON('/api/monitoring-all/backup-queue').then(function (res) {
+        if (res.ok && res.data) renderBackupQueue(res.data);
+      }).catch(function () {});
+    }
+
+    function startBackupQueuePoll() {
+      if (backupQueuePoller) return;
+      backupQueuePoller = setInterval(loadBackupQueue, 4000);
+    }
+
+    function runBackup(serverId, serverName, btn) {
+      if (!confirm('Backup server "' + serverName + '"?\n\nImage akan dibuat di server target lalu disimpan ke server monitor pusat.\nProses bisa memakan waktu lama.')) return;
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+      fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }).then(function (res) {
+        showResult(res.ok, res.message || res.error || 'Queued.');
+        loadBackupQueue();
+      }).catch(function () { showResult(false, 'Backup request failed.'); })
+        .then(function () {
+          if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        });
+    }
+
+    function renderImagesModal(data, serverId, serverName) {
+      var body = $('#maModalImagesBody');
+      var title = $('#maModalImagesLabel');
+      if (title) title.innerHTML = '<i class="bi bi-hdd me-1"></i> Images — ' + esc(serverName) + ' <span class="text-secondary small">(server pusat)</span>';
+      if (!body) return;
+      if (!data) {
+        body.innerHTML = '<div class="text-secondary text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</div>';
+        return;
+      }
+      var images = data.images || [];
+      if (!images.length) {
+        body.innerHTML = '<div class="alert alert-secondary mb-0">Belum ada image. Klik <strong>Backup</strong> pada card server.</div>';
+        return;
+      }
+      var rows = images.map(function (img) {
+        var when = img.createdAt ? new Date(img.createdAt).toLocaleString() : '—';
+        var dl = '/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/backups/' + encodeURIComponent(img.filename) + '/download';
+        return '<tr><td><div class="small fw-semibold text-break">' + esc(img.filename) + '</div><div class="text-secondary small">' + esc(when) + '</div></td>' +
+          '<td class="small">' + fmtBytes(img.size) + '</td>' +
+          '<td class="text-end text-nowrap">' +
+          '<a class="btn btn-sm btn-outline-info me-1" href="' + dl + '"><i class="bi bi-download"></i></a>' +
+          '<button type="button" class="btn btn-sm btn-outline-warning me-1" data-ma-image-restore="' + esc(img.filename) + '"><i class="bi bi-arrow-counterclockwise"></i></button>' +
+          '<button type="button" class="btn btn-sm btn-outline-danger" data-ma-image-delete="' + esc(img.filename) + '"><i class="bi bi-trash"></i></button>' +
+          '</td></tr>';
+      }).join('');
+      body.innerHTML = '<div class="table-responsive"><table class="table sm-table mb-0"><thead><tr><th>File</th><th>Size</th><th class="text-end">Actions</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div>';
+    }
+
+    function loadImagesModal(serverId, serverName) {
+      activeImageServer = { id: serverId, name: serverName };
+      renderImagesModal(null, serverId, serverName);
+      if (imagesModal) imagesModal.show();
+      return fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(serverId) + '/backups').then(function (res) {
+        if (!res.ok) {
+          $('#maModalImagesBody').innerHTML = '<div class="alert alert-danger mb-0">' + esc(res.error || 'Failed to load images.') + '</div>';
+          return;
+        }
+        renderImagesModal(res, serverId, serverName);
+      }).catch(function () {
+        $('#maModalImagesBody').innerHTML = '<div class="alert alert-danger mb-0">Request failed.</div>';
+      });
+    }
+
+    function runImageRestore(filename) {
+      if (!activeImageServer) return;
+      if (!confirm('RESTORE image ini ke server "' + activeImageServer.name + '"?\n\n' + filename + '\n\nData di server target akan ditimpa!')) return;
+      var typed = prompt('Ketik RESTORE untuk konfirmasi:');
+      if (typed !== 'RESTORE') return;
+      fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(activeImageServer.id) + '/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: filename, confirm: 'RESTORE' })
+      }).then(function (res) {
+        showResult(res.ok, res.message || res.error || 'Queued.');
+        loadBackupQueue();
+      }).catch(function () { showResult(false, 'Restore request failed.'); });
+    }
+
+    function runImageDelete(filename, btn) {
+      if (!activeImageServer) return;
+      if (!confirm('Hapus image dari server pusat?\n\n' + filename)) return;
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; };
+      fetchJSON('/api/monitoring-all/server/' + encodeURIComponent(activeImageServer.id) + '/backups/' + encodeURIComponent(filename), {
+        method: 'DELETE'
+      }).then(function (res) {
+        showResult(res.ok, res.message || res.error || 'Done.');
+        if (res.ok) loadImagesModal(activeImageServer.id, activeImageServer.name);
+      }).catch(function () { showResult(false, 'Delete failed.'); })
         .then(function () {
           if (btn) { btn.disabled = false; btn.innerHTML = original; }
         });
@@ -1119,7 +1269,24 @@
     });
     if (refreshBtn) refreshBtn.addEventListener('click', load);
 
+    var imagesBody = $('#maModalImagesBody');
+    if (imagesBody) imagesBody.addEventListener('click', function (e) {
+      var restoreBtn = e.target.closest ? e.target.closest('[data-ma-image-restore]') : null;
+      if (restoreBtn) {
+        e.preventDefault();
+        runImageRestore(restoreBtn.getAttribute('data-ma-image-restore'));
+        return;
+      }
+      var delBtn = e.target.closest ? e.target.closest('[data-ma-image-delete]') : null;
+      if (delBtn) {
+        e.preventDefault();
+        runImageDelete(delBtn.getAttribute('data-ma-image-delete'), delBtn);
+      }
+    });
+
     load();
+    loadBackupQueue();
+    startBackupQueuePoll();
     poller(load, 10000);
   }
 

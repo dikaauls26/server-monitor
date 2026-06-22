@@ -81,6 +81,24 @@ CREATE TABLE IF NOT EXISTS domain_delete_jobs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_domain_delete_jobs_status ON domain_delete_jobs (status);
+
+CREATE TABLE IF NOT EXISTS server_backup_jobs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  server_id TEXT NOT NULL,
+  server_name TEXT,
+  job_type TEXT NOT NULL DEFAULT 'backup',
+  filename TEXT,
+  file_size INTEGER NOT NULL DEFAULT 0,
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'queued',
+  message TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at TEXT,
+  finished_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_server_backup_jobs_status ON server_backup_jobs (status);
 `;
 
 function ensureColumn(db, table, column, definition) {

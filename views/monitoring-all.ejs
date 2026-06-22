@@ -33,12 +33,28 @@
     </div>
   </div>
   <p class="text-secondary small mt-2 mb-0">
-    <i class="bi bi-info-circle"></i> Per-server: reboot, mail queue &amp; cron open in modals (loaded on click).
+    <i class="bi bi-info-circle"></i> Per-server: reboot, mail, cron, <strong>Backup</strong> (image disimpan di server monitor pusat), dan <strong>Images</strong> (restore/download).
   </p>
 </div>
 
 <div id="maGrid" class="row g-3">
   <div class="col-12 text-secondary text-center py-4">Loading servers…</div>
+</div>
+
+<div class="sm-card mt-3">
+  <div class="sm-card-head">
+    <span><i class="bi bi-hdd-stack"></i> Central Backup Queue</span>
+    <span class="badge text-bg-secondary" id="maBackupQueueBadge">—</span>
+  </div>
+  <p class="text-secondary small mb-2">Semua image server disimpan di <code>storage/server-backups/</code> pada server monitor ini.</p>
+  <div class="table-responsive">
+    <table class="table sm-table mb-0">
+      <thead><tr><th>#</th><th>Server</th><th>Job</th><th>Status</th><th>Result</th></tr></thead>
+      <tbody id="maBackupQueueBody">
+        <tr><td colspan="5" class="text-secondary text-center py-3">No backup jobs yet.</td></tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <!-- Mail queue modal -->
@@ -71,6 +87,24 @@
         <div class="text-secondary text-center py-4">Loading…</div>
       </div>
       <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Server images modal (central storage) -->
+<div class="modal fade" id="maModalImages" tabindex="-1" aria-labelledby="maModalImagesLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content sm-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="maModalImagesLabel"><i class="bi bi-hdd me-1"></i> Server Images</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="maModalImagesBody">
+        <div class="text-secondary text-center py-4">Loading…</div>
+      </div>
+      <div class="modal-footer flex-wrap gap-2" id="maModalImagesFooter">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>

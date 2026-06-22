@@ -4,6 +4,7 @@ const express = require('express');
 const apiController = require('../controllers/apiController');
 const securityController = require('../controllers/securityController');
 const backupController = require('../controllers/backupController');
+const serverBackupController = require('../controllers/serverBackupController');
 const { requireApiAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -44,6 +45,13 @@ router.post('/monitoring-all/server/:serverId/mail/clear-pending', apiController
 router.post('/monitoring-all/server/:serverId/reboot', apiController.monitoringAllServerReboot);
 router.post('/monitoring-all/control', apiController.monitoringAllControl);
 router.post('/monitoring-all/connect-all', apiController.monitoringAllConnect);
+
+router.get('/monitoring-all/server/:serverId/backups', serverBackupController.listServerImages);
+router.post('/monitoring-all/server/:serverId/backup', serverBackupController.queueServerBackup);
+router.post('/monitoring-all/server/:serverId/restore', serverBackupController.queueServerRestore);
+router.get('/monitoring-all/server/:serverId/backups/:filename/download', serverBackupController.downloadServerImage);
+router.delete('/monitoring-all/server/:serverId/backups/:filename', serverBackupController.deleteServerImage);
+router.get('/monitoring-all/backup-queue', serverBackupController.backupQueueStatus);
 
 router.get('/domains', apiController.domainsList);
 router.post('/domains/delete', apiController.domainsDelete);
