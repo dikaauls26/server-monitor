@@ -3,7 +3,7 @@
 const domainService = require('./domainService');
 const remoteDomainService = require('./remoteDomainService');
 const cloudflareService = require('./cloudflareService');
-const { resolveTarget } = require('./monitoringAllService');
+const { resolveTarget } = require('./serverTargetService');
 const sshService = require('./sshService');
 const serverRepository = require('../repositories/serverRepository');
 const { run } = require('./execHelper');

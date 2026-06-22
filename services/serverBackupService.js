@@ -10,7 +10,7 @@ const os = require('os');
 const config = require('../config');
 const sshService = require('./sshService');
 const serverRepository = require('../repositories/serverRepository');
-const { resolveTarget } = require('./monitoringAllService');
+const { resolveTarget } = require('./serverTargetService');
 const { remoteBash } = require('./shellScript');
 const { run } = require('./execHelper');
 

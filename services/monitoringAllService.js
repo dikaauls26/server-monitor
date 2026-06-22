@@ -16,18 +16,7 @@ const mailService = require('./mailService');
 const cronService = require('./cronService');
 const sshService = require('./sshService');
 const serverShellService = require('./serverShellService');
-
-function resolveTarget(serverId) {
-  const raw = String(serverId);
-  if (raw === 'local' || raw === '0') {
-    return { local: true, remoteId: null, name: 'Local Server' };
-  }
-  const id = parseInt(raw, 10);
-  if (!Number.isFinite(id)) return null;
-  const srv = serverRepository.getById(id);
-  if (!srv) return null;
-  return { local: false, remoteId: id, name: srv.name };
-}
+const { resolveTarget } = require('./serverTargetService');
 
 function withOnlineFlag(snap) {
   return {

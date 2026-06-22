@@ -53,6 +53,10 @@ body.sm-body {
 .sm-nav-link i { font-size: 1.1rem; width: 1.2rem; text-align: center; }
 .sm-nav-link:hover { background: var(--sm-card-2); color: var(--sm-text); }
 .sm-nav-link.active { background: var(--sm-primary); color: #fff; }
+.sm-nav-btn {
+  width: 100%; border: 0; background: transparent; cursor: pointer; text-align: left;
+  font: inherit;
+}
 .sm-alert-badge { margin-left: auto; }
 
 .sm-sidebar-footer { padding: .65rem; border-top: 1px solid var(--sm-border); }

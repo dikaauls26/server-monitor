@@ -4,6 +4,9 @@
   </button>
   <h1 class="sm-topbar-title"><%= typeof title !== 'undefined' ? title : 'Dashboard' %></h1>
   <div class="sm-topbar-right">
+    <button class="btn btn-sm btn-outline-success d-none d-sm-inline-flex" id="smOpenLocalTerminal" type="button" title="Terminal server monitor (lokal)">
+      <i class="bi bi-terminal"></i><span class="d-none d-lg-inline ms-1">Terminal</span>
+    </button>
     <span class="sm-live-indicator" id="smLive" title="Live updates">
       <span class="sm-live-dot"></span> Live
     </span>

@@ -7,7 +7,7 @@
 const os = require('os');
 const { run } = require('./execHelper');
 const sshService = require('./sshService');
-const { resolveTarget } = require('./monitoringAllService');
+const { resolveTarget } = require('./serverTargetService');
 
 const MAX_COMMAND_LEN = 8000;
 const DEFAULT_TIMEOUT = 60000;
